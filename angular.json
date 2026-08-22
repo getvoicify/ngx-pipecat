@@ -24,9 +24,7 @@
                 "input": "public"
               }
             ],
-            "styles": [
-              "src/styles.css"
-            ]
+            "styles": ["src/styles.css"]
           },
           "configurations": {
             "production": {
@@ -66,6 +64,32 @@
         },
         "test": {
           "builder": "@angular/build:unit-test"
+        }
+      }
+    },
+    "pipecat": {
+      "projectType": "library",
+      "root": "projects/pipecat",
+      "sourceRoot": "projects/pipecat/src",
+      "prefix": "gvo",
+      "architect": {
+        "build": {
+          "builder": "@angular/build:ng-packagr",
+          "configurations": {
+            "production": {
+              "tsConfig": "projects/pipecat/tsconfig.lib.prod.json"
+            },
+            "development": {
+              "tsConfig": "projects/pipecat/tsconfig.lib.json"
+            }
+          },
+          "defaultConfiguration": "production"
+        },
+        "test": {
+          "builder": "@angular/build:unit-test",
+          "options": {
+            "tsConfig": "projects/pipecat/tsconfig.spec.json"
+          }
         }
       }
     }
