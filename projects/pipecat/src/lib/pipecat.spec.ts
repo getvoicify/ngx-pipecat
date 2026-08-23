@@ -105,6 +105,66 @@ describe('Pipecat', () => {
     expect(error).toBeInstanceOf(RTVIMessage);
   });
 
+  it('startBotAndConnect() delegates to client.startBotAndConnect() with the same params', () => {
+    const { pipecat, client } = setup();
+    const startBotAndConnectSpy = vi
+      .spyOn(client, 'startBotAndConnect')
+      .mockResolvedValue({} as never);
+    const params = { endpoint: 'https://example.com/start-and-connect' };
+
+    pipecat.startBotAndConnect(params);
+
+    expect(startBotAndConnectSpy).toHaveBeenCalledWith(params);
+  });
+
+  it('surfaces a startBotAndConnect() promise rejection via error()', async () => {
+    const { pipecat, client } = setup();
+    const startBotAndConnectSpy = vi
+      .spyOn(client, 'startBotAndConnect')
+      .mockRejectedValue(new Error('startBotAndConnect failed'));
+
+    pipecat.startBotAndConnect({ endpoint: 'https://example.com/start-and-connect' });
+    const settled = startBotAndConnectSpy.mock.results[0]!.value as Promise<unknown>;
+    await settled.catch(() => {});
+
+    const error = pipecat.error();
+    expect(error).not.toBeNull();
+    expect(error).toBeInstanceOf(RTVIMessage);
+  });
+
+  it('disconnectBot() delegates to client.disconnectBot()', () => {
+    const { pipecat, client } = setup();
+    const disconnectBotSpy = vi.spyOn(client, 'disconnectBot').mockReturnValue(undefined);
+
+    pipecat.disconnectBot();
+
+    expect(disconnectBotSpy).toHaveBeenCalled();
+  });
+
+  it('startBot() delegates to client.startBot() with the same params and returns its result', async () => {
+    const { pipecat, client } = setup();
+    const sentinel = { connectionId: 'abc123' };
+    vi.spyOn(client, 'startBot').mockResolvedValue(sentinel);
+    const params = { endpoint: 'https://example.com/start-bot' };
+
+    const result = await pipecat.startBot(params);
+
+    expect(client.startBot).toHaveBeenCalledWith(params);
+    expect(result).toBe(sentinel);
+  });
+
+  it('surfaces a startBot() promise rejection via error() while still rejecting the returned promise', async () => {
+    const { pipecat, client } = setup();
+    vi.spyOn(client, 'startBot').mockRejectedValue(new Error('startBot failed'));
+    const params = { endpoint: 'https://example.com/start-bot' };
+
+    await expect(pipecat.startBot(params)).rejects.toThrow('startBot failed');
+
+    const error = pipecat.error();
+    expect(error).not.toBeNull();
+    expect(error).toBeInstanceOf(RTVIMessage);
+  });
+
   it('removes its event listeners when the providing injector is destroyed', () => {
     const { client } = setup();
     const before = client.listenerCount(RTVIEvent.TransportStateChanged);

@@ -62,6 +62,24 @@ export class Pipecat {
     });
   }
 
+  startBotAndConnect(params: Parameters<PipecatClient['startBotAndConnect']>[0]): void {
+    this.client.startBotAndConnect(params).catch((err: unknown) => {
+      this.manualError$.next(RTVIMessage.error(err instanceof Error ? err.message : String(err)));
+    });
+  }
+
+  disconnectBot(): void {
+    this.client.disconnectBot();
+  }
+
+  startBot(params: Parameters<PipecatClient['startBot']>[0]): Promise<unknown> {
+    const result = this.client.startBot(params);
+    result.catch((err: unknown) => {
+      this.manualError$.next(RTVIMessage.error(err instanceof Error ? err.message : String(err)));
+    });
+    return result;
+  }
+
   /**
    * Mirrors the underlying SDK's `client.on(event, callback)` as an Observable,
    * giving 1:1 access to every raw `RTVIEvent` the client emits.
