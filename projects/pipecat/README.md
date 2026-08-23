@@ -144,3 +144,15 @@ To execute unit tests, run:
 ```bash
 ng test pipecat
 ```
+
+## Releasing
+
+Releases are automated with [release-please](https://github.com/googleapis/release-please).
+Commits on `main` must follow [Conventional Commits](https://www.conventionalcommits.org/)
+(`feat:`, `fix:`, `chore:`, `docs:`, etc.); a breaking change is `feat!:`/`fix!:`
+or a `BREAKING CHANGE:` footer. release-please keeps an open "release PR" that
+accumulates the pending version bump and changelog for every conventional
+commit since the last release — merging that PR cuts the release (tags
+`v{version}` and updates `CHANGELOG.md`), which triggers the existing
+`publish.yml` workflow to build and publish to npm automatically. No manual
+tagging or `npm publish` is needed.

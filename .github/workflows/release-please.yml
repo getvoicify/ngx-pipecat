@@ -1,0 +1,62 @@
+# Maintains an always-up-to-date "release PR" that accumulates pending
+# Conventional Commits changes for @getvoicify/pipecat (projects/pipecat)
+# into a version bump + auto-generated projects/pipecat/CHANGELOG.md.
+#
+# Merging that release PR makes release-please push a `v{version}` tag
+# (config: release-please-config.json has "include-component-in-tag": false,
+# so the tag is plain `v0.0.2` etc., not `pipecat-v0.0.2` — this must keep
+# matching publish.yml's `on.push.tags: ['v*']` trigger). That tag push is
+# what actually kicks off publish.yml and ships to npm; this workflow itself
+# never publishes anything.
+#
+# IMPORTANT gotcha: a tag pushed using the default `secrets.GITHUB_TOKEN`
+# does NOT trigger other workflows (GitHub deliberately suppresses
+# GITHUB_TOKEN-authored events from starting new workflow runs, to prevent
+# accidental recursion). Left as-is, the release PR would merge and tag
+# successfully, but publish.yml would never fire, silently.
+#
+# Fix: mint a token from the org's existing `voicifybot` GitHub App instead
+# of using GITHUB_TOKEN. This is the same pattern already used in
+# getvoicify/gangan-api (see its ci.yaml and deploy.yml) to solve the exact
+# same problem — release-please-action's default GITHUB_TOKEN would not
+# trigger publish.yml on the tag it pushes, same suppression behavior GitHub
+# applies everywhere. voicifybot is the intended real path here, not an
+# optional upgrade, so there is no GITHUB_TOKEN fallback below.
+#
+# Open items for the user to verify (not checkable from this task):
+#   (a) Whether VOICIFYBOT_APP_ID / VOICIFYBOT_PRIVATE_KEY are already
+#       org-level secrets (nothing else needed) or scoped to gangan-api
+#       specifically (in which case they'd need adding as repo secrets
+#       here too). `gh api repos/getvoicify/ngx-pipecat/actions/secrets`
+#       currently shows zero repo-level secrets on this repo, so at
+#       minimum this needs verifying.
+#   (b) That the voicifybot GitHub App is actually installed on the
+#       ngx-pipecat repository — a GitHub App needs per-repo installation,
+#       independent of secret visibility.
+
+name: release-please
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate voicifybot token
+        id: bot-token
+        uses: actions/create-github-app-token@d72941d797fd3113feb6b93fd0dec494b13a2547 # v1
+        with:
+          app-id: ${{ secrets.VOICIFYBOT_APP_ID }}
+          private-key: ${{ secrets.VOICIFYBOT_PRIVATE_KEY }}
+      - uses: googleapis/release-please-action@v4
+        with:
+          token: ${{ steps.bot-token.outputs.token }}
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
