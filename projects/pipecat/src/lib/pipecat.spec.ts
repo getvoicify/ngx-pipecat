@@ -1,6 +1,9 @@
 import { TestBed } from '@angular/core/testing';
 import { RTVIEvent, RTVIMessage } from '@pipecat-ai/client-js';
 import { Pipecat } from './pipecat';
+import { PipecatDevices } from './devices';
+import { PipecatMessaging } from './messaging';
+import { PipecatFunctions } from './functions';
 import { providePipecat } from './provider';
 import { PIPECAT_CLIENT, PIPECAT_TRANSPORT } from './tokens';
 import { FakeTransport } from './testing/fake-transport';
@@ -207,5 +210,26 @@ describe('Pipecat', () => {
 
     expect(botReady).toHaveBeenCalledTimes(1);
     expect(userTranscript).not.toHaveBeenCalled();
+  });
+
+  it('exposes the injected PipecatDevices instance via devices', () => {
+    const { pipecat } = setup();
+    const devices = TestBed.inject(PipecatDevices);
+
+    expect(pipecat.devices).toBe(devices);
+  });
+
+  it('exposes the injected PipecatMessaging instance via messaging', () => {
+    const { pipecat } = setup();
+    const messaging = TestBed.inject(PipecatMessaging);
+
+    expect(pipecat.messaging).toBe(messaging);
+  });
+
+  it('exposes the injected PipecatFunctions instance via functions', () => {
+    const { pipecat } = setup();
+    const functions = TestBed.inject(PipecatFunctions);
+
+    expect(pipecat.functions).toBe(functions);
   });
 });
