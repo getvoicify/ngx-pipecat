@@ -1,14 +1,16 @@
 import { computed, inject, Injectable } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
-import { fromEvent, merge, Observable, Subject } from 'rxjs';
+import { merge, Observable, Subject } from 'rxjs';
 import { map, scan } from 'rxjs/operators';
 import {
   ConnectionEndpoint,
   RTVIEvent,
+  RTVIEventHandler,
   RTVIMessage,
   TransportConnectionParams,
   TransportState,
 } from '@pipecat-ai/client-js';
+import { fromClientEvent } from './events';
 import { PIPECAT_CLIENT } from './tokens';
 
 interface PipecatStatus {
@@ -24,12 +26,12 @@ export class Pipecat {
   private readonly manualError$ = new Subject<RTVIMessage>();
 
   private readonly status$: Observable<PipecatStatus> = merge(
-    fromEvent<TransportState>(this.client, RTVIEvent.TransportStateChanged).pipe(
+    fromClientEvent(this.client, RTVIEvent.TransportStateChanged).pipe(
       map((state): Partial<PipecatStatus> =>
         state === 'error' ? { state } : { state, error: null },
       ),
     ),
-    fromEvent<RTVIMessage>(this.client, RTVIEvent.Error).pipe(
+    fromClientEvent(this.client, RTVIEvent.Error).pipe(
       map((error): Partial<PipecatStatus> => ({ error })),
     ),
     this.manualError$.pipe(map((error): Partial<PipecatStatus> => ({ error }))),
@@ -51,5 +53,13 @@ export class Pipecat {
     this.client.connect(params).catch((err: unknown) => {
       this.manualError$.next(RTVIMessage.error(err instanceof Error ? err.message : String(err)));
     });
+  }
+
+  /**
+   * Mirrors the underlying SDK's `client.on(event, callback)` as an Observable,
+   * giving 1:1 access to every raw `RTVIEvent` the client emits.
+   */
+  on<E extends RTVIEvent>(event: E): Observable<Parameters<RTVIEventHandler<E>>[0]> {
+    return fromClientEvent(this.client, event);
   }
 }
