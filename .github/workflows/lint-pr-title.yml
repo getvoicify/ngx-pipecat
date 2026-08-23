@@ -1,0 +1,42 @@
+# Lints pull request titles against the Conventional Commits spec.
+#
+# This repo squash-merges only (enforced via a GitHub ruleset on main), so
+# the PR title becomes the actual commit message that lands on main, and
+# release-please parses that commit message to determine version bumps and
+# changelog entries. So the PR title — not individual commit messages
+# within the PR, which get discarded on squash — is what needs linting for
+# commit hygiene here.
+#
+# Kept separate from ci.yml because the trigger needs differ: this
+# workflow must also fire on `edited` (PR titles get fixed up after
+# opening, and the default `pull_request` trigger types do not include
+# `edited`), and it only reads the PR title from the event context — no
+# checkout of repository contents is needed.
+
+name: Lint PR Title
+
+on:
+  pull_request:
+    types:
+      - opened
+      - edited
+      - synchronize
+      - reopened
+    branches:
+      - main
+
+permissions:
+  pull-requests: read
+
+jobs:
+  lint-pr-title:
+    # The job name is what GitHub reports as the status check context, so
+    # keep this stable — it needs to be added to the branch protection
+    # ruleset's required status checks under this exact name.
+    name: lint-pr-title
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate PR title
+        uses: amannn/action-semantic-pull-request@v6
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
