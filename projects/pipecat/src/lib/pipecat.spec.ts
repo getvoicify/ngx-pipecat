@@ -81,6 +81,30 @@ describe('Pipecat', () => {
     expect(error).toBeInstanceOf(RTVIMessage);
   });
 
+  it('disconnect() delegates to client.disconnect()', () => {
+    const { pipecat, client } = setup();
+    const disconnectSpy = vi.spyOn(client, 'disconnect').mockResolvedValue(undefined);
+
+    pipecat.disconnect();
+
+    expect(disconnectSpy).toHaveBeenCalled();
+  });
+
+  it('surfaces a disconnect() promise rejection via error()', async () => {
+    const { pipecat, client } = setup();
+    const disconnectSpy = vi
+      .spyOn(client, 'disconnect')
+      .mockRejectedValue(new Error('disconnect failed'));
+
+    pipecat.disconnect();
+    const settled = disconnectSpy.mock.results[0]!.value as Promise<unknown>;
+    await settled.catch(() => {});
+
+    const error = pipecat.error();
+    expect(error).not.toBeNull();
+    expect(error).toBeInstanceOf(RTVIMessage);
+  });
+
   it('removes its event listeners when the providing injector is destroyed', () => {
     const { client } = setup();
     const before = client.listenerCount(RTVIEvent.TransportStateChanged);

@@ -2,12 +2,11 @@ import { computed, inject, Injectable } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { merge, Observable, Subject } from 'rxjs';
 import { map, scan } from 'rxjs/operators';
+import type { PipecatClient } from '@pipecat-ai/client-js';
 import {
-  ConnectionEndpoint,
   RTVIEvent,
   RTVIEventHandler,
   RTVIMessage,
-  TransportConnectionParams,
   TransportState,
 } from '@pipecat-ai/client-js';
 import { fromClientEvent } from './events';
@@ -17,6 +16,8 @@ interface PipecatStatus {
   state: TransportState;
   error: RTVIMessage | null;
 }
+
+type ConnectParams = Parameters<PipecatClient['connect']>[0];
 
 @Injectable({
   providedIn: 'root',
@@ -49,8 +50,14 @@ export class Pipecat {
   readonly state = computed(() => this.status().state);
   readonly error = computed(() => this.status().error);
 
-  connect(params?: TransportConnectionParams | ConnectionEndpoint): void {
+  connect(params?: ConnectParams): void {
     this.client.connect(params).catch((err: unknown) => {
+      this.manualError$.next(RTVIMessage.error(err instanceof Error ? err.message : String(err)));
+    });
+  }
+
+  disconnect(): void {
+    this.client.disconnect().catch((err: unknown) => {
       this.manualError$.next(RTVIMessage.error(err instanceof Error ? err.message : String(err)));
     });
   }
