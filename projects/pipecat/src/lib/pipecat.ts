@@ -56,6 +56,15 @@ export class Pipecat {
   readonly state = computed(() => this.status().state);
   readonly error = computed(() => this.status().error);
 
+  /**
+   * When `params` is the deprecated `ConnectionEndpoint`-shaped object (not
+   * the common `TransportConnectionParams` case), this bypasses Angular's
+   * `HttpClient` — the SDK makes that request via a raw `fetch()` call
+   * internally, so registered `HttpInterceptor`s (auth headers, XSRF, retry,
+   * logging) never run for it. If the endpoint requires auth or other
+   * headers an interceptor would normally add, attach them manually via
+   * `params.headers`.
+   */
   connect(params?: ConnectParams): void {
     this.client.connect(params).catch((err: unknown) => {
       this.manualError$.next(RTVIMessage.error(err instanceof Error ? err.message : String(err)));
@@ -68,6 +77,13 @@ export class Pipecat {
     });
   }
 
+  /**
+   * Bypasses Angular's `HttpClient` — the SDK makes this request via a raw
+   * `fetch()` call internally, so registered `HttpInterceptor`s (auth
+   * headers, XSRF, retry, logging) never run for it. If the endpoint
+   * requires auth or other headers an interceptor would normally add,
+   * attach them manually via `params.headers`.
+   */
   startBotAndConnect(params: Parameters<PipecatClient['startBotAndConnect']>[0]): void {
     this.client.startBotAndConnect(params).catch((err: unknown) => {
       this.manualError$.next(RTVIMessage.error(err instanceof Error ? err.message : String(err)));
@@ -78,6 +94,13 @@ export class Pipecat {
     this.client.disconnectBot();
   }
 
+  /**
+   * Bypasses Angular's `HttpClient` — the SDK makes this request via a raw
+   * `fetch()` call internally, so registered `HttpInterceptor`s (auth
+   * headers, XSRF, retry, logging) never run for it. If the endpoint
+   * requires auth or other headers an interceptor would normally add,
+   * attach them manually via `params.headers`.
+   */
   startBot(params: Parameters<PipecatClient['startBot']>[0]): Promise<unknown> {
     const result = this.client.startBot(params);
     result.catch((err: unknown) => {
