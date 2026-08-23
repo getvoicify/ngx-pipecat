@@ -47,6 +47,51 @@ describe('PipecatMessaging', () => {
 
       expect(spy).toHaveBeenCalledWith('1');
     });
+
+    it('startUISnapshotStream() delegates to client.startUISnapshotStream() with the same options', () => {
+      const { messaging, client } = setup();
+      const spy = vi.spyOn(client, 'startUISnapshotStream').mockReturnValue(undefined);
+
+      messaging.startUISnapshotStream({ debounceMs: 500 });
+
+      expect(spy).toHaveBeenCalledWith({ debounceMs: 500 });
+    });
+
+    it('startUISnapshotStream() delegates to client.startUISnapshotStream() with no options', () => {
+      const { messaging, client } = setup();
+      const spy = vi.spyOn(client, 'startUISnapshotStream').mockReturnValue(undefined);
+
+      messaging.startUISnapshotStream();
+
+      expect(spy).toHaveBeenCalledWith(undefined);
+    });
+
+    it('stopUISnapshotStream() delegates to client.stopUISnapshotStream()', () => {
+      const { messaging, client } = setup();
+      const spy = vi.spyOn(client, 'stopUISnapshotStream').mockReturnValue(undefined);
+
+      messaging.stopUISnapshotStream();
+
+      expect(spy).toHaveBeenCalled();
+    });
+
+    it('cancelUIJobGroup() delegates to client.cancelUIJobGroup() with the same jobId and reason', () => {
+      const { messaging, client } = setup();
+      const spy = vi.spyOn(client, 'cancelUIJobGroup').mockReturnValue(undefined);
+
+      messaging.cancelUIJobGroup('job-1', 'user cancelled');
+
+      expect(spy).toHaveBeenCalledWith('job-1', 'user cancelled');
+    });
+
+    it('cancelUIJobGroup() delegates to client.cancelUIJobGroup() with no reason', () => {
+      const { messaging, client } = setup();
+      const spy = vi.spyOn(client, 'cancelUIJobGroup').mockReturnValue(undefined);
+
+      messaging.cancelUIJobGroup('job-1');
+
+      expect(spy).toHaveBeenCalledWith('job-1', undefined);
+    });
   });
 
   describe('async passthrough, no swallowing', () => {

@@ -26,6 +26,23 @@ export class PipecatMessaging {
     this.client.sendDTMF(dtmf);
   }
 
+  startUISnapshotStream(
+    options?: Parameters<PipecatClient['startUISnapshotStream']>[0],
+  ): void {
+    this.client.startUISnapshotStream(options);
+  }
+
+  stopUISnapshotStream(): void {
+    this.client.stopUISnapshotStream();
+  }
+
+  cancelUIJobGroup(
+    jobId: Parameters<PipecatClient['cancelUIJobGroup']>[0],
+    reason?: Parameters<PipecatClient['cancelUIJobGroup']>[1],
+  ): void {
+    this.client.cancelUIJobGroup(jobId, reason);
+  }
+
   sendClientRequest(
     msgType: Parameters<PipecatClient['sendClientRequest']>[0],
     data: Parameters<PipecatClient['sendClientRequest']>[1],
