@@ -1,5 +1,17 @@
 # Publishes projects/pipecat to npm as @getvoicify/pipecat whenever a tag
-# matching v* is pushed.
+# matching v* is pushed, or when manually triggered from the Actions UI/API.
+#
+# Manual trigger (workflow_dispatch): lets a maintainer run this workflow
+# without a new tag existing yet — e.g. to re-publish, recover from a failed
+# automated run, or publish outside the normal release-please flow.
+# workflow_dispatch's built-in ref picker (no custom input needed) lets the
+# operator choose any branch or tag; GITHUB_REF_NAME then reflects whatever
+# was selected, not necessarily a `v*` tag. Because the "Verify tag matches
+# package version" step's TAG_VERSION derivation only makes sense for an
+# actual tag push, that step is skipped entirely (`if: github.event_name ==
+# 'push'`) on manual runs — the operator is trusted to have picked the right
+# ref and to intend publishing whatever version is in
+# projects/pipecat/package.json at that ref.
 #
 # Auth: npm OIDC "Trusted Publishing" (no long-lived NPM_TOKEN secret). The
 # npm CLI (>= 11.5.1, satisfied by the Node 24 setup below) auto-detects the
@@ -37,6 +49,7 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch: {}
 
 jobs:
   publish:
@@ -66,6 +79,7 @@ jobs:
         run: bunx ng build pipecat
 
       - name: Verify tag matches package version
+        if: github.event_name == 'push'
         run: |
           TAG_VERSION="${GITHUB_REF_NAME#v}"
           PKG_VERSION="$(node -p "require('./dist/pipecat/package.json').version")"
