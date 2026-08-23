@@ -14,26 +14,34 @@
 # projects/pipecat/package.json at that ref.
 #
 # Auth: npm OIDC "Trusted Publishing" (no long-lived NPM_TOKEN secret). The
-# npm CLI (>= 11.5.1, satisfied by the Node 24 setup below) auto-detects the
-# GitHub Actions OIDC environment via actions/setup-node's `registry-url` and
-# exchanges it for a short-lived publish credential at `npm publish` time.
-# `permissions.id-token: write` below is what makes that OIDC token available
-# to the job.
+# npm CLI (>= 11.5.1) auto-detects the GitHub Actions OIDC environment via
+# actions/setup-node's `registry-url` and exchanges it for a short-lived
+# publish credential at `npm publish` time. The npm version bundled with
+# Node 24 on GitHub Actions runners is not guaranteed to meet this minimum
+# (multiple real-world reports needed an explicit upgrade), so the "Upgrade
+# npm" step below pins npm to latest before publish. `permissions.id-token:
+# write` below is what makes the OIDC token available to the job.
 #
-# One-time manual setup (not done by this workflow — verify on npmjs.com
-# before relying on this): under the package's Settings -> Trusted Publisher
-# on npmjs.com, configure Organization/user = getvoicify, Repository =
-# getvoicify/ngx-pipecat, Workflow filename = publish.yml (exact,
-# case-sensitive match), and select "npm publish" under Allowed actions.
-# Whether this can be configured before the package has ever been published
-# once is NOT confirmed either way in npm's docs as of this writing — verify
-# this on npmjs.com yourself; if it turns out the package must be published
-# manually/with a token first, do that once, then switch the Trusted
-# Publisher config on afterward.
+# One-time manual setup (not done by this workflow): under the package's
+# Settings -> Trusted Publisher on npmjs.com, configure Organization/user =
+# getvoicify, Repository = getvoicify/ngx-pipecat, Workflow filename =
+# publish.yml (exact, case-sensitive match), and select "npm publish" under
+# Allowed actions. CONFIRMED: the package must be published at least once via
+# a traditional method (e.g. `npm publish` with a token) before the Trusted
+# Publisher settings become configurable — that settings page lives at
+# npmjs.com/package/{name}/access, which is package-specific and does not
+# exist until the package itself has been published at least once. That
+# one-time manual bootstrap publish is being handled separately by the repo
+# owner, outside of this workflow.
 #
-# Provenance: with trusted publishing + a public repo + a public package (all
-# true here), npm generates provenance attestations automatically — no
-# `--provenance` flag needed.
+# Provenance: npm's docs claim that with trusted publishing + a public repo +
+# a public package (all true here), provenance attestations are generated
+# automatically with no `--provenance` flag needed. In practice, multiple
+# real-world reports (including a linked npm/cli GitHub issue) found that
+# provenance was not attached, or publish behaved unreliably, unless
+# `--provenance` was passed explicitly — so this workflow does not rely on
+# the documented automatic behavior and passes the flag explicitly on the
+# publish step below.
 #
 # package.json's `repository.url` must exactly match this GitHub repository
 # or trusted publishing fails at publish time with ENEEDAUTH (npm does not
@@ -69,6 +77,9 @@ jobs:
           node-version: 24
           registry-url: 'https://registry.npmjs.org'
 
+      - name: Upgrade npm
+        run: npm install -g npm@latest
+
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
@@ -90,4 +101,4 @@ jobs:
           echo "Tag version $TAG_VERSION matches package version $PKG_VERSION"
 
       - name: Publish to npm
-        run: npm publish dist/pipecat
+        run: npm publish dist/pipecat --provenance
