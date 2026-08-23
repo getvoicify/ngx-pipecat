@@ -1,6 +1,11 @@
 {
-  "name": "pipecat",
+  "name": "@getvoicify/pipecat",
   "version": "0.0.1",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/getvoicify/ngx-pipecat.git",
+    "directory": "projects/pipecat"
+  },
   "peerDependencies": {
     "@angular/common": "^21.2.0",
     "@angular/core": "^21.2.0",
@@ -9,5 +14,8 @@
   "dependencies": {
     "tslib": "^2.3.0"
   },
-  "sideEffects": false
+  "sideEffects": false,
+  "publishConfig": {
+    "access": "public"
+  }
 }

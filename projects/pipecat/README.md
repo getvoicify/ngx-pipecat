@@ -13,7 +13,7 @@ once it is. Once published, install alongside the SDK it wraps and a
 transport implementation of your choice (e.g. Daily):
 
 ```bash
-npm install pipecat @pipecat-ai/client-js @pipecat-ai/daily-transport
+npm install @getvoicify/pipecat @pipecat-ai/client-js @pipecat-ai/daily-transport
 ```
 
 `@angular/core` and `@angular/common` `^21.2.0` and `@pipecat-ai/client-js`
@@ -28,7 +28,7 @@ Provide the client in your app config with `providePipecat()`, and provide
 
 ```typescript
 import { ApplicationConfig } from '@angular/core';
-import { providePipecat, PIPECAT_TRANSPORT } from 'pipecat';
+import { providePipecat, PIPECAT_TRANSPORT } from '@getvoicify/pipecat';
 import { DailyTransport } from '@pipecat-ai/daily-transport';
 
 export const appConfig: ApplicationConfig = {
@@ -45,7 +45,7 @@ Then inject `Pipecat` and connect:
 
 ```typescript
 import { Component, inject } from '@angular/core';
-import { Pipecat } from 'pipecat';
+import { Pipecat } from '@getvoicify/pipecat';
 
 @Component({ /* ... */ })
 export class VoiceWidget {

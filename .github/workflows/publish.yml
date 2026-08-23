@@ -1,0 +1,79 @@
+# Publishes projects/pipecat to npm as @getvoicify/pipecat whenever a tag
+# matching v* is pushed.
+#
+# Auth: npm OIDC "Trusted Publishing" (no long-lived NPM_TOKEN secret). The
+# npm CLI (>= 11.5.1, satisfied by the Node 24 setup below) auto-detects the
+# GitHub Actions OIDC environment via actions/setup-node's `registry-url` and
+# exchanges it for a short-lived publish credential at `npm publish` time.
+# `permissions.id-token: write` below is what makes that OIDC token available
+# to the job.
+#
+# One-time manual setup (not done by this workflow — verify on npmjs.com
+# before relying on this): under the package's Settings -> Trusted Publisher
+# on npmjs.com, configure Organization/user = getvoicify, Repository =
+# getvoicify/ngx-pipecat, Workflow filename = publish.yml (exact,
+# case-sensitive match), and select "npm publish" under Allowed actions.
+# Whether this can be configured before the package has ever been published
+# once is NOT confirmed either way in npm's docs as of this writing — verify
+# this on npmjs.com yourself; if it turns out the package must be published
+# manually/with a token first, do that once, then switch the Trusted
+# Publisher config on afterward.
+#
+# Provenance: with trusted publishing + a public repo + a public package (all
+# true here), npm generates provenance attestations automatically — no
+# `--provenance` flag needed.
+#
+# package.json's `repository.url` must exactly match this GitHub repository
+# or trusted publishing fails at publish time with ENEEDAUTH (npm does not
+# validate this when the Trusted Publisher config is saved).
+
+name: Publish to npm
+
+permissions:
+  id-token: write   # Required for npm OIDC trusted publishing
+  contents: read
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.5
+
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Run tests
+        run: bunx ng test pipecat --watch=false
+
+      - name: Build library
+        run: bunx ng build pipecat
+
+      - name: Verify tag matches package version
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          PKG_VERSION="$(node -p "require('./dist/pipecat/package.json').version")"
+          if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
+            echo "::error::Tag version ($TAG_VERSION) does not match built package version ($PKG_VERSION)"
+            exit 1
+          fi
+          echo "Tag version $TAG_VERSION matches package version $PKG_VERSION"
+
+      - name: Publish to npm
+        run: npm publish dist/pipecat
