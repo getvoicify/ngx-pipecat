@@ -90,4 +90,38 @@ describe('Pipecat', () => {
 
     expect(client.listenerCount(RTVIEvent.TransportStateChanged)).toBe(0);
   });
+
+  it('on(event) emits the raw client event payload', () => {
+    const { pipecat, client } = setup();
+    const received: unknown[] = [];
+    pipecat.on(RTVIEvent.BotReady).subscribe((data) => received.push(data));
+
+    const botData = { version: '1.0.0' };
+    client.emit(RTVIEvent.BotReady, botData);
+
+    expect(received).toEqual([botData]);
+  });
+
+  it('on(event) fires for a zero-argument event with an undefined payload', () => {
+    const { pipecat, client } = setup();
+    const received: unknown[] = [];
+    pipecat.on(RTVIEvent.Connected).subscribe((data) => received.push(data));
+
+    client.emit(RTVIEvent.Connected);
+
+    expect(received).toEqual([undefined]);
+  });
+
+  it('keeps independent on() subscriptions for different events isolated', () => {
+    const { pipecat, client } = setup();
+    const botReady = vi.fn();
+    const userTranscript = vi.fn();
+    pipecat.on(RTVIEvent.BotReady).subscribe(botReady);
+    pipecat.on(RTVIEvent.UserTranscript).subscribe(userTranscript);
+
+    client.emit(RTVIEvent.BotReady, { version: '1.0.0' });
+
+    expect(botReady).toHaveBeenCalledTimes(1);
+    expect(userTranscript).not.toHaveBeenCalled();
+  });
 });
