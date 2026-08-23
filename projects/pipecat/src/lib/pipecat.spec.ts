@@ -70,11 +70,11 @@ describe('Pipecat', () => {
 
   it('surfaces a connect() promise rejection via error()', async () => {
     const { pipecat, client } = setup();
-    vi.spyOn(client, 'connect').mockRejectedValue(new Error('connect failed'));
+    const connectSpy = vi.spyOn(client, 'connect').mockRejectedValue(new Error('connect failed'));
 
     pipecat.connect();
-    await Promise.resolve();
-    await Promise.resolve();
+    const settled = connectSpy.mock.results[0]!.value as Promise<unknown>;
+    await settled.catch(() => {});
 
     const error = pipecat.error();
     expect(error).not.toBeNull();
