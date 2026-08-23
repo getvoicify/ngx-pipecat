@@ -11,6 +11,9 @@ import {
 } from '@pipecat-ai/client-js';
 import { fromClientEvent } from './events';
 import { PIPECAT_CLIENT } from './tokens';
+import { PipecatDevices } from './devices';
+import { PipecatMessaging } from './messaging';
+import { PipecatFunctions } from './functions';
 
 interface PipecatStatus {
   state: TransportState;
@@ -24,6 +27,9 @@ type ConnectParams = Parameters<PipecatClient['connect']>[0];
 })
 export class Pipecat {
   private readonly client = inject(PIPECAT_CLIENT);
+  readonly devices = inject(PipecatDevices);
+  readonly messaging = inject(PipecatMessaging);
+  readonly functions = inject(PipecatFunctions);
   private readonly manualError$ = new Subject<RTVIMessage>();
 
   private readonly status$: Observable<PipecatStatus> = merge(
