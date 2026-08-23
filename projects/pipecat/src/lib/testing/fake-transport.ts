@@ -14,6 +14,9 @@ import {
  */
 export class FakeTransport extends Transport {
   private _fakeState: TransportState = 'disconnected';
+  private _fakeIsCamEnabled = false;
+  private _fakeIsMicEnabled = false;
+  private _fakeIsSharingScreen = false;
 
   override initialize(
     _options: PipecatClientOptions,
@@ -63,13 +66,22 @@ export class FakeTransport extends Transport {
   override enableCam(_enable: boolean): void {}
   override enableScreenShare(_enable: boolean): void {}
   override get isCamEnabled(): boolean {
-    return false;
+    return this._fakeIsCamEnabled;
+  }
+  override set isCamEnabled(enabled: boolean) {
+    this._fakeIsCamEnabled = enabled;
   }
   override get isMicEnabled(): boolean {
-    return false;
+    return this._fakeIsMicEnabled;
+  }
+  override set isMicEnabled(enabled: boolean) {
+    this._fakeIsMicEnabled = enabled;
   }
   override get isSharingScreen(): boolean {
-    return false;
+    return this._fakeIsSharingScreen;
+  }
+  override set isSharingScreen(enabled: boolean) {
+    this._fakeIsSharingScreen = enabled;
   }
   override sendMessage(_message: RTVIMessage): void {}
   override tracks(): Tracks {
