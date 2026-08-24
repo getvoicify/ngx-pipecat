@@ -10,9 +10,8 @@ event parity with the underlying SDK via `on()`.
 
 ## Install
 
-This library is not yet published to npm; this section will be filled in
-once it is. Once published, install alongside the SDK it wraps and a
-transport implementation of your choice (e.g. Daily):
+Install alongside the SDK it wraps and a transport implementation of your
+choice (e.g. Daily):
 
 ```bash
 npm install @getvoicify/pipecat @pipecat-ai/client-js @pipecat-ai/daily-transport
