@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.2.0](https://github.com/getvoicify/ngx-pipecat/compare/v0.1.0...v0.2.0) (2026-08-24)
+
+
+### Features
+
+* add PipecatConversation transcript service ([#20](https://github.com/getvoicify/ngx-pipecat/issues/20)) ([59407c7](https://github.com/getvoicify/ngx-pipecat/commit/59407c774cf372c7c30683a99a09a4c37f4a30ab))
+* add UI Worker Protocol dispatch layer ([#18](https://github.com/getvoicify/ngx-pipecat/issues/18)) ([75a0920](https://github.com/getvoicify/ngx-pipecat/commit/75a0920d613b713f1bb72ae5634c46d53e9f6c01))
+
 ## [0.1.0](https://github.com/getvoicify/ngx-pipecat/compare/v0.0.1...v0.1.0) (2026-08-24)
 
 
