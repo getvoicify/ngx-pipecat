@@ -10,3 +10,5 @@ export * from './lib/functions';
 export * from './lib/events';
 export * from './lib/tokens';
 export * from './lib/types';
+export * from './lib/pipecat-audio';
+export * from './lib/pipecat-video';

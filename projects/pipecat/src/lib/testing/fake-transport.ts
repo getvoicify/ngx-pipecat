@@ -1,4 +1,4 @@
-import { TransportState } from '@pipecat-ai/client-js';
+import { Tracks, TransportState } from '@pipecat-ai/client-js';
 import { NoopTransport } from '../noop-transport';
 
 /**
@@ -11,6 +11,7 @@ export class FakeTransport extends NoopTransport {
   private _fakeIsCamEnabled = false;
   private _fakeIsMicEnabled = false;
   private _fakeIsSharingScreen = false;
+  private _fakeTracks: Tracks = { local: {} };
 
   override get state(): TransportState {
     return this._fakeState;
@@ -35,5 +36,11 @@ export class FakeTransport extends NoopTransport {
   }
   override set isSharingScreen(enabled: boolean) {
     this._fakeIsSharingScreen = enabled;
+  }
+  override tracks(): Tracks {
+    return this._fakeTracks;
+  }
+  setTracks(tracks: Tracks): void {
+    this._fakeTracks = tracks;
   }
 }

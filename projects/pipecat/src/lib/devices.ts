@@ -1,6 +1,7 @@
 import { inject, Injectable } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
-import type { Observable } from 'rxjs';
+import { merge, type Observable } from 'rxjs';
+import { map } from 'rxjs/operators';
 import type { PipecatClient } from '@pipecat-ai/client-js';
 import { RTVIEvent } from '@pipecat-ai/client-js';
 import { fromClientEvent } from './events';
@@ -100,6 +101,28 @@ export class PipecatDevices {
   tracks(): ReturnType<PipecatClient['tracks']> {
     return this.client.tracks();
   }
+
+  // Reactive counterpart to tracks() above. Named `liveTracks` rather than
+  // `tracks` because a class cannot declare both a method and a same-named
+  // field (TS2300: Duplicate identifier) — the plain tracks() delegate stays
+  // as-is for callers that just want a synchronous snapshot.
+  //
+  // The SDK doesn't emit a single unified "tracks changed" event, and the
+  // four lifecycle events below carry differently-shaped payloads that don't
+  // map cleanly onto `Tracks`' `{ local, bot? }` structure. Rather than
+  // reconstruct that structure by hand from each event, any one of them
+  // firing just triggers a re-read of the SDK's own snapshot via
+  // client.tracks() — reusing its correct computation instead of duplicating
+  // it.
+  readonly liveTracks = toSignal(
+    merge(
+      fromClientEvent(this.client, RTVIEvent.TrackStarted),
+      fromClientEvent(this.client, RTVIEvent.TrackStopped),
+      fromClientEvent(this.client, RTVIEvent.ScreenTrackStarted),
+      fromClientEvent(this.client, RTVIEvent.ScreenTrackStopped),
+    ).pipe(map(() => this.client.tracks())),
+    { initialValue: this.client.tracks() },
+  );
 
   isMicEnabled(): PipecatClient['isMicEnabled'] {
     return this.client.isMicEnabled;
