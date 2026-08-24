@@ -1,4 +1,4 @@
-import { inject, Injectable } from '@angular/core';
+import { inject, Injectable, signal } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { merge, type Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
@@ -23,15 +23,11 @@ export class PipecatDevices {
   // upcast, not a hand-copied type — both sides still come straight from
   // `PipecatClient`.
   readonly selectedMic = toSignal(
-    fromClientEvent(this.client, RTVIEvent.MicUpdated) as Observable<
-      PipecatClient['selectedMic']
-    >,
+    fromClientEvent(this.client, RTVIEvent.MicUpdated) as Observable<PipecatClient['selectedMic']>,
     { initialValue: this.client.selectedMic },
   );
   readonly selectedCam = toSignal(
-    fromClientEvent(this.client, RTVIEvent.CamUpdated) as Observable<
-      PipecatClient['selectedCam']
-    >,
+    fromClientEvent(this.client, RTVIEvent.CamUpdated) as Observable<PipecatClient['selectedCam']>,
     { initialValue: this.client.selectedCam },
   );
   readonly selectedSpeaker = toSignal(
@@ -57,16 +53,40 @@ export class PipecatDevices {
     this.client.updateSpeaker(speakerId);
   }
 
+  // Service-scoped enabled-state signals: `isMicEnabled`/etc. below have no
+  // corresponding SDK change-event, so there is nothing to build a signal
+  // from directly (see the comment on `needsInit()` further down). Instead,
+  // these three signals are updated by this service's OWN enableMic()/etc.
+  // methods, seeded from the current snapshot at construction time. Any
+  // caller that goes through these methods — a toggle directive, a keyboard
+  // shortcut handler, anything — updates the SAME shared signal, so every UI
+  // element reading it stays consistent with every other one. This doesn't
+  // solve reactivity in general: if the Transport changes enabled state on
+  // its own outside of these methods, the tracked signal won't see it — but
+  // that's the same already-accepted limitation `isMicEnabled()` itself has,
+  // not a new one.
+  private readonly _micEnabled = signal(this.client.isMicEnabled);
+  readonly micEnabled = this._micEnabled.asReadonly();
+
+  private readonly _camEnabled = signal(this.client.isCamEnabled);
+  readonly camEnabled = this._camEnabled.asReadonly();
+
+  private readonly _sharingScreen = signal(this.client.isSharingScreen);
+  readonly sharingScreen = this._sharingScreen.asReadonly();
+
   enableMic(enable: Parameters<PipecatClient['enableMic']>[0]): void {
     this.client.enableMic(enable);
+    this._micEnabled.set(enable);
   }
 
   enableCam(enable: Parameters<PipecatClient['enableCam']>[0]): void {
     this.client.enableCam(enable);
+    this._camEnabled.set(enable);
   }
 
   enableScreenShare(enable: Parameters<PipecatClient['enableScreenShare']>[0]): void {
     this.client.enableScreenShare(enable);
+    this._sharingScreen.set(enable);
   }
 
   getAllMics(): ReturnType<PipecatClient['getAllMics']> {

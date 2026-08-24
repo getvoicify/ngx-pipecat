@@ -258,6 +258,59 @@ describe('PipecatDevices', () => {
     });
   });
 
+  describe('category E: service-scoped enabled-state signals', () => {
+    it('seeds micEnabled() from client.isMicEnabled at construction time', () => {
+      const transport = new FakeTransport();
+      transport.isMicEnabled = true;
+      const { devices } = setup(transport);
+
+      expect(devices.micEnabled()).toBe(true);
+    });
+
+    it('updates micEnabled() to the given value when enableMic() is called', () => {
+      const { devices, client } = setup();
+      vi.spyOn(client, 'enableMic').mockReturnValue(undefined);
+
+      devices.enableMic(true);
+
+      expect(devices.micEnabled()).toBe(true);
+    });
+
+    it('seeds camEnabled() from client.isCamEnabled at construction time', () => {
+      const transport = new FakeTransport();
+      transport.isCamEnabled = true;
+      const { devices } = setup(transport);
+
+      expect(devices.camEnabled()).toBe(true);
+    });
+
+    it('updates camEnabled() to the given value when enableCam() is called', () => {
+      const { devices, client } = setup();
+      vi.spyOn(client, 'enableCam').mockReturnValue(undefined);
+
+      devices.enableCam(true);
+
+      expect(devices.camEnabled()).toBe(true);
+    });
+
+    it('seeds sharingScreen() from client.isSharingScreen at construction time', () => {
+      const transport = new FakeTransport();
+      transport.isSharingScreen = true;
+      const { devices } = setup(transport);
+
+      expect(devices.sharingScreen()).toBe(true);
+    });
+
+    it('updates sharingScreen() to the given value when enableScreenShare() is called', () => {
+      const { devices, client } = setup();
+      vi.spyOn(client, 'enableScreenShare').mockReturnValue(undefined);
+
+      devices.enableScreenShare(true);
+
+      expect(devices.sharingScreen()).toBe(true);
+    });
+  });
+
   describe('category D: reactive liveTracks signal', () => {
     it('seeds liveTracks() from client.tracks() at construction time', () => {
       const { devices, client } = setup();

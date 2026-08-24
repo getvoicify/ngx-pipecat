@@ -12,3 +12,6 @@ export * from './lib/tokens';
 export * from './lib/types';
 export * from './lib/pipecat-audio';
 export * from './lib/pipecat-video';
+export * from './lib/pipecat-mic-toggle';
+export * from './lib/pipecat-cam-toggle';
+export * from './lib/pipecat-screen-share-toggle';
