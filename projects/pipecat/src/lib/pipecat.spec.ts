@@ -6,6 +6,7 @@ import { PipecatMessaging } from './messaging';
 import { PipecatFunctions } from './functions';
 import { PipecatUICommands } from './ui-commands';
 import { PipecatUIJobGroups } from './ui-job-groups';
+import { PipecatConversation } from './conversation';
 import { providePipecat } from './provider';
 import { PIPECAT_CLIENT, PIPECAT_TRANSPORT } from './tokens';
 import { FakeTransport } from './testing/fake-transport';
@@ -247,5 +248,12 @@ describe('Pipecat', () => {
     const jobGroups = TestBed.inject(PipecatUIJobGroups);
 
     expect(pipecat.jobGroups).toBe(jobGroups);
+  });
+
+  it('exposes the injected PipecatConversation instance via conversation', () => {
+    const { pipecat } = setup();
+    const conversation = TestBed.inject(PipecatConversation);
+
+    expect(pipecat.conversation).toBe(conversation);
   });
 });
