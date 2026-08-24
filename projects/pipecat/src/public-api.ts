@@ -9,6 +9,7 @@ export * from './lib/messaging';
 export * from './lib/functions';
 export * from './lib/ui-commands';
 export * from './lib/ui-job-groups';
+export * from './lib/conversation';
 export * from './lib/default-ui-command-handlers';
 export * from './lib/events';
 export * from './lib/tokens';
