@@ -94,4 +94,16 @@ describe('PipecatUICommands', () => {
     expect(firstHandler).not.toHaveBeenCalled();
     expect(secondHandler).toHaveBeenCalledWith({ id: 7 });
   });
+
+  it('stops dispatching UICommand events once the owning injector is destroyed', () => {
+    const { uiCommands, client } = setup();
+    const handler = vi.fn();
+    uiCommands.registerCommandHandler('highlight', handler);
+
+    TestBed.resetTestingModule();
+
+    client.emit(RTVIEvent.UICommand, { command: 'highlight', payload: { id: 1 } });
+
+    expect(handler).not.toHaveBeenCalled();
+  });
 });
