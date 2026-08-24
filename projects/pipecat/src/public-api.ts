@@ -15,3 +15,4 @@ export * from './lib/pipecat-video';
 export * from './lib/pipecat-mic-toggle';
 export * from './lib/pipecat-cam-toggle';
 export * from './lib/pipecat-screen-share-toggle';
+export * from './lib/pipecat-voice-visualizer';
