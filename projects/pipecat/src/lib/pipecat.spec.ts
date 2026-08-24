@@ -4,6 +4,8 @@ import { Pipecat } from './pipecat';
 import { PipecatDevices } from './devices';
 import { PipecatMessaging } from './messaging';
 import { PipecatFunctions } from './functions';
+import { PipecatUICommands } from './ui-commands';
+import { PipecatUIJobGroups } from './ui-job-groups';
 import { providePipecat } from './provider';
 import { PIPECAT_CLIENT, PIPECAT_TRANSPORT } from './tokens';
 import { FakeTransport } from './testing/fake-transport';
@@ -231,5 +233,19 @@ describe('Pipecat', () => {
     const functions = TestBed.inject(PipecatFunctions);
 
     expect(pipecat.functions).toBe(functions);
+  });
+
+  it('exposes the injected PipecatUICommands instance via uiCommands', () => {
+    const { pipecat } = setup();
+    const uiCommands = TestBed.inject(PipecatUICommands);
+
+    expect(pipecat.uiCommands).toBe(uiCommands);
+  });
+
+  it('exposes the injected PipecatUIJobGroups instance via jobGroups', () => {
+    const { pipecat } = setup();
+    const jobGroups = TestBed.inject(PipecatUIJobGroups);
+
+    expect(pipecat.jobGroups).toBe(jobGroups);
   });
 });

@@ -14,6 +14,8 @@ import { PIPECAT_CLIENT } from './tokens';
 import { PipecatDevices } from './devices';
 import { PipecatMessaging } from './messaging';
 import { PipecatFunctions } from './functions';
+import { PipecatUICommands } from './ui-commands';
+import { PipecatUIJobGroups } from './ui-job-groups';
 
 interface PipecatStatus {
   state: TransportState;
@@ -30,6 +32,8 @@ export class Pipecat {
   readonly devices = inject(PipecatDevices);
   readonly messaging = inject(PipecatMessaging);
   readonly functions = inject(PipecatFunctions);
+  readonly uiCommands = inject(PipecatUICommands);
+  readonly jobGroups = inject(PipecatUIJobGroups);
   private readonly manualError$ = new Subject<RTVIMessage>();
 
   private readonly status$: Observable<PipecatStatus> = merge(
