@@ -81,7 +81,7 @@ The main facade, covering connection lifecycle:
 - `disconnectBot()`
 - `state` / `error` — signals derived from `TransportStateChanged` and `Error` events (and from rejected promises on the calls above)
 - `on(event)` — full event parity, see below
-- `.devices`, `.messaging`, `.functions` — the sibling services below, aggregated for convenience
+- `.devices`, `.messaging`, `.functions`, `.uiCommands`, `.jobGroups`, `.conversation` — the sibling services below, aggregated for convenience
 
 ### `Pipecat.devices` (`PipecatDevices`)
 
@@ -118,6 +118,56 @@ snapshot streaming controls (`startUISnapshotStream`,
 Registering handlers the bot can invoke as function/tool calls:
 `registerFunctionCallHandler`, `unregisterFunctionCallHandler`,
 `unregisterAllFunctionCallHandlers`.
+
+### `Pipecat.conversation` (`PipecatConversation`)
+
+Builds a text transcript from the bot's transcription/LLM-output event
+stream:
+
+- `turns` — a signal of committed `{ role: 'user' | 'bot', text, timestamp }`
+  entries, in chronological order.
+- `currentUserPartial` / `currentBotPartial` — live in-flight text: interim
+  speech-to-text while the user is talking, and the bot's response as it
+  streams in, before either commits to `turns`.
+- `clear()` — resets everything.
+
+A user turn commits when the transcription event is marked final; a bot turn
+commits when the bot's LLM finishes generating (an LLM-stop with no
+accumulated text produces no phantom empty turn). This is scoped to text
+content only — it does not track speaking-activity events (no "user
+started/stopped speaking" indicators).
+
+```html
+@for (turn of pipecat.conversation.turns(); track turn.timestamp) {
+  <p [class]="turn.role">{{ turn.text }}</p>
+}
+@if (pipecat.conversation.currentUserPartial(); as partial) {
+  <p class="user pending">{{ partial }}</p>
+}
+@if (pipecat.conversation.currentBotPartial(); as partial) {
+  <p class="bot pending">{{ partial }}</p>
+}
+```
+
+### `Pipecat.uiCommands` (`PipecatUICommands`)
+
+Dispatches inbound `ui-command` bot messages to handlers registered by name:
+`registerCommandHandler(command, handler)` /
+`unregisterCommandHandler(command)` — the same idiom as
+`PipecatFunctions.registerFunctionCallHandler`. A command with no registered
+handler warns instead of throwing, and a handler that throws doesn't break
+dispatch for subsequent commands.
+
+### `Pipecat.jobGroups` (`PipecatUIJobGroups`)
+
+Aggregates the bot's `ui-job-group` event stream — a multi-worker async job
+lifecycle: started → per-worker updates → per-worker completed → group
+completed — into a `jobGroups` signal keyed by job id, with per-worker
+`status`/`latestUpdate`/`response`. Completed groups stay in state until the
+app explicitly clears them via `clearJobGroup(jobId)` /
+`clearCompletedJobGroups()` — they are not auto-removed.
+`Pipecat.messaging.cancelUIJobGroup(jobId, reason?)` is the way to ask the
+server to cancel one.
 
 ## DOM components
 
@@ -169,6 +219,37 @@ readable via a template-reference variable:
   {{ s.enabled() ? 'Stop sharing' : 'Share screen' }}
 </button>
 ```
+
+## UI Worker Protocol
+
+`registerDefaultUICommandHandlers(uiCommands)` registers the three standard
+built-in commands the protocol documents — `click`, `set_input_value`,
+`select_text` — letting the bot click elements, write into form fields, and
+change text selection on the page. This is real DOM-mutating behavior, which
+is exactly why it's opt-in rather than automatic: nothing in the library
+calls it for you.
+
+It resolves target elements via `ref` (a snapshot-assigned reference id, from
+the SDK's accessibility-snapshot system) or `target_id` (a plain DOM element
+id), trying `ref` first. It refuses to write into `disabled`/`readonly`/
+`hidden` inputs. It's SSR-safe: it no-ops on the server, and never throws.
+
+```ts
+import { inject } from '@angular/core';
+import { PipecatUICommands, registerDefaultUICommandHandlers } from '@getvoicify/pipecat';
+
+// once, e.g. in a root component or app initializer
+registerDefaultUICommandHandlers(inject(PipecatUICommands));
+
+// registering your own custom command, alongside the built-ins
+inject(PipecatUICommands).registerCommandHandler('open_settings_dialog', (payload) => {
+  // ...
+});
+```
+
+Job-group state — multi-step async worker jobs the bot dispatches — is
+tracked separately via `Pipecat.jobGroups`, documented above in the service
+surface section.
 
 ## `PipecatVoiceVisualizer`
 
