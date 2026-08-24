@@ -33,6 +33,16 @@
 #   (b) That the voicifybot GitHub App is actually installed on the
 #       ngx-pipecat repository — a GitHub App needs per-repo installation,
 #       independent of secret visibility.
+#
+# Manual trigger (workflow_dispatch): lets a maintainer manually re-run this
+# workflow to regenerate a fresh, conflict-free release PR against current
+# main — e.g. recovering from a release PR that has drifted into a merge
+# conflict — without needing to push a throwaway commit to main just to fire
+# the push trigger. release-please-action itself doesn't care what triggered
+# the run; it computes fresh state from git history and the config files
+# either way, so no special conditional logic is needed here (unlike
+# publish.yml's manual trigger, which skips a tag-comparison step that only
+# makes sense on an actual tag push).
 
 name: release-please
 
@@ -40,6 +50,7 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch: {}
 
 permissions:
   contents: write
