@@ -257,4 +257,55 @@ describe('PipecatDevices', () => {
       expect(devices.needsInit()).toBe(false);
     });
   });
+
+  describe('category D: reactive liveTracks signal', () => {
+    it('seeds liveTracks() from client.tracks() at construction time', () => {
+      const { devices, client } = setup();
+
+      expect(devices.liveTracks()).toEqual(client.tracks());
+    });
+
+    it('reflects a new client.tracks() snapshot after RTVIEvent.TrackStarted fires', () => {
+      const { devices, client, transport } = setup();
+      const audioTrack = { kind: 'audio', id: 'bot-audio-1' } as MediaStreamTrack;
+      transport.setTracks({ local: {}, bot: { audio: audioTrack } });
+
+      client.emit(RTVIEvent.TrackStarted, audioTrack);
+
+      expect(devices.liveTracks()).toEqual({ local: {}, bot: { audio: audioTrack } });
+    });
+
+    it('reflects a new client.tracks() snapshot after RTVIEvent.TrackStopped fires', () => {
+      const { devices, client, transport } = setup();
+      const localVideo = { kind: 'video', id: 'local-video-1' } as MediaStreamTrack;
+      transport.setTracks({ local: { video: localVideo } });
+
+      client.emit(RTVIEvent.TrackStopped, localVideo);
+
+      expect(devices.liveTracks()).toEqual({ local: { video: localVideo } });
+    });
+
+    it('reflects a new client.tracks() snapshot after RTVIEvent.ScreenTrackStarted fires', () => {
+      const { devices, client, transport } = setup();
+      const screenVideo = { kind: 'video', id: 'screen-video-1' } as MediaStreamTrack;
+      transport.setTracks({ local: { screenVideo } });
+
+      client.emit(RTVIEvent.ScreenTrackStarted, screenVideo);
+
+      expect(devices.liveTracks()).toEqual({ local: { screenVideo } });
+    });
+
+    it('reflects a new client.tracks() snapshot after RTVIEvent.ScreenTrackStopped fires', () => {
+      // Note: the fixture below must differ from the FakeTransport default
+      // (`{ local: {} }`) or this assertion would pass regardless of whether
+      // ScreenTrackStopped is actually wired up — vacuously.
+      const { devices, client, transport } = setup();
+      const botAudio = { kind: 'audio', id: 'bot-audio-2' } as MediaStreamTrack;
+      transport.setTracks({ local: {}, bot: { audio: botAudio } });
+
+      client.emit(RTVIEvent.ScreenTrackStopped, {} as MediaStreamTrack);
+
+      expect(devices.liveTracks()).toEqual({ local: {}, bot: { audio: botAudio } });
+    });
+  });
 });
