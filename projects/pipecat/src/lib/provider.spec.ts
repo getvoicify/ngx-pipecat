@@ -1,3 +1,4 @@
+import { PLATFORM_ID } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { providePipecat } from './provider';
 import { PIPECAT_CLIENT, PIPECAT_TRANSPORT } from './tokens';
@@ -87,5 +88,54 @@ describe('providePipecat', () => {
     TestBed.resetTestingModule();
 
     expect(catchHandler).toBeDefined();
+  });
+
+  it('never constructs the real transport when running on the server platform', () => {
+    const transportFactory = vi.fn(() => new FakeTransport());
+    TestBed.configureTestingModule({
+      providers: [
+        providePipecat(),
+        { provide: PIPECAT_TRANSPORT, useFactory: transportFactory },
+        { provide: PLATFORM_ID, useValue: 'server' },
+      ],
+    });
+
+    TestBed.inject(PIPECAT_CLIENT);
+
+    expect(transportFactory).not.toHaveBeenCalled();
+  });
+
+  it('still resolves a usable PIPECAT_CLIENT on the server platform', () => {
+    const transportFactory = vi.fn(() => new FakeTransport());
+    TestBed.configureTestingModule({
+      providers: [
+        providePipecat(),
+        { provide: PIPECAT_TRANSPORT, useFactory: transportFactory },
+        { provide: PLATFORM_ID, useValue: 'server' },
+      ],
+    });
+
+    const client = TestBed.inject(PIPECAT_CLIENT);
+
+    expect(client).toBeTruthy();
+    expect(() => client.transport.state).not.toThrow();
+    expect(client.transport.state).toBe('disconnected');
+  });
+
+  it('still uses the real provided transport on the browser platform', () => {
+    const fakeTransport = new FakeTransport();
+    const tracksSpy = vi.spyOn(fakeTransport, 'tracks');
+    TestBed.configureTestingModule({
+      providers: [
+        providePipecat(),
+        { provide: PIPECAT_TRANSPORT, useValue: fakeTransport },
+        { provide: PLATFORM_ID, useValue: 'browser' },
+      ],
+    });
+
+    const client = TestBed.inject(PIPECAT_CLIENT);
+    client.transport.tracks();
+
+    expect(tracksSpy).toHaveBeenCalledTimes(1);
   });
 });
