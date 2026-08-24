@@ -46,6 +46,18 @@
 # package.json's `repository.url` must exactly match this GitHub repository
 # or trusted publishing fails at publish time with ENEEDAUTH (npm does not
 # validate this when the Trusted Publisher config is saved).
+#
+# Publish step gotcha: never pass a path argument to `npm publish` (e.g.
+# `npm publish dist/pipecat`). A bare relative path like `dist/pipecat` is
+# syntactically identical to npm's `owner/repo` GitHub-shorthand package
+# specifier, so npm misinterprets it as "fetch package `pipecat` from GitHub
+# user/org `dist`" instead of a local filesystem path, and fails with
+# EALLOWGIT ("Refusing to fetch ... Fetching packages of type \"git\" have
+# been disabled"). CONFIRMED by a real failed run (tag v0.1.0). The fix is to
+# `cd` into the built package directory via the step's `working-directory`
+# and run a bare `npm publish` with no path argument — this is exactly what
+# the repo owner's successful one-time manual bootstrap publish did. Do not
+# reintroduce a path argument here.
 
 name: Publish to npm
 
@@ -101,4 +113,5 @@ jobs:
           echo "Tag version $TAG_VERSION matches package version $PKG_VERSION"
 
       - name: Publish to npm
-        run: npm publish dist/pipecat --provenance
+        working-directory: dist/pipecat
+        run: npm publish --provenance
