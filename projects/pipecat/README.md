@@ -158,6 +158,179 @@ export class VoicePage {
 }
 ```
 
+## Using a transport other than Daily
+
+`PIPECAT_TRANSPORT` is an `InjectionToken<Transport>`, and `providePipecat()`
+does nothing with the instance beyond passing it to `PipecatClient`. Any
+`Transport` the SDK supports drops into the slot Daily occupies in the examples
+above, and nothing else about the wiring changes. What differs between
+transports is the connection parameters each one expects.
+
+SmallWebRTC is worth spelling out because it is the transport you reach for
+when the orchestrator is your own Pipecat server rather than a hosted room, and
+because one of its options is both easy to miss and quiet when it is missing.
+
+```bash
+npm install @pipecat-ai/small-webrtc-transport
+```
+
+`@pipecat-ai/small-webrtc-transport@1.10.6` declares `"@pipecat-ai/client-js":
+"~1.13.0"` as its only peer dependency — the same tilde range this library
+declares, for the reason given under [Install](#install). One `client-js`
+resolution satisfies both.
+
+The provider is the route-scoped shape from the previous section with the class
+swapped:
+
+```typescript
+// voice/voice.routes.ts — fetched only when someone visits /voice.
+import { Routes } from '@angular/router';
+import { providePipecat, PIPECAT_TRANSPORT } from '@getvoicify/pipecat';
+import { SmallWebRTCTransport } from '@pipecat-ai/small-webrtc-transport';
+
+export const VOICE_ROUTES: Routes = [
+  {
+    path: '',
+    providers: [
+      providePipecat(),
+      {
+        provide: PIPECAT_TRANSPORT,
+        useFactory: () =>
+          new SmallWebRTCTransport({
+            offerUrlTemplate: '/api/sessions/:sessionId/offer',
+          }),
+      },
+    ],
+    loadComponent: () => import('./voice-page').then((m) => m.VoicePage),
+  },
+];
+```
+
+Everything the previous section says about lazy loading applies unchanged. The
+bundle figures there were measured with Daily and will differ for another
+transport, but the shape of the trap does not.
+
+### `offerUrlTemplate`: where the SDP offer is sent
+
+SmallWebRTC connects in two requests, not one. `startBotAndConnect()` POSTs to
+your start endpoint to spawn the bot, then POSTs the WebRTC SDP offer to a
+*second* URL and expects an SDP answer back. `offerUrlTemplate` is how you say
+where that second URL is. Three things about it are worth knowing before you
+write the call.
+
+**It is a constructor option, not a connect parameter.** It is declared on
+`SmallWebRTCTransportConstructorOptions`, not on the
+`SmallWebRTCTransportConnectionOptions` that `connect()` accepts, so it has to
+go to `new SmallWebRTCTransport({ ... })` — inside the `PIPECAT_TRANSPORT`
+factory. There is no way to supply it later.
+
+**It interpolates the literal substring `:sessionId`.** Not `{sessionId}`, not
+`${sessionId}`, and not a path segment: the transport calls
+`.replace(':sessionId', sessionId)`, so the placeholder is matched literally and
+only the first occurrence is substituted. The session id comes from the body
+your start endpoint returned — the transport reads a `sessionId` or
+`session_id` key off it (snake_case keys are camel-cased first) and strips it
+out of the connection parameters before passing the rest on.
+
+**It is only consulted on the startBot path.** The template is read from one
+place: a fallback that runs only when the transport already knows a start
+endpoint, which it knows because `startBot()` recorded it before making the
+request. Spawn the bot with your own `fetch()` and then call
+`Pipecat.connect()`, and no start endpoint was ever recorded, the fallback is
+skipped, and `offerUrlTemplate` is dead configuration. Reach it via
+`Pipecat.startBotAndConnect(params)`, or via `Pipecat.startBot(params)`
+followed by `Pipecat.connect()` with the response it resolved to. If you must
+spawn the bot yourself, pass `webrtcRequestParams` instead — see below.
+
+### The silent failure when `offerUrlTemplate` is absent
+
+Without a template, the offer URL is derived from the start endpoint by string
+substitution:
+
+```typescript
+// vendor internals — @pipecat-ai/small-webrtc-transport, not this library's API
+const offerUrl = this.offerUrlTemplate
+  ? this.offerUrlTemplate.replace(':sessionId', sessionId)
+  : startEndpoint.replace('/start', `/sessions/${sessionId}/api/offer`);
+```
+
+`String.prototype.replace` with a string pattern returns its input **unchanged**
+when the pattern does not occur. A start endpoint with no `/start` in it —
+`/api/bot/spawn`, `/api/connect`, `https://bot.example.com/v1/sessions` —
+therefore yields an offer URL identical to the start endpoint, and the SDP offer
+is POSTed straight back to the bot-spawn endpoint. Nothing rejects it. That
+endpoint is real and working, so it answers `200` with its usual
+`{ sessionId, status }` body, and the transport hands that to
+`RTCPeerConnection.setRemoteDescription()`.
+
+What you observe:
+
+- `connect()` neither throws nor resolves, and `state` stays on `connecting`.
+- The rejection from `setRemoteDescription()` is caught inside the transport and
+  logged at `debug` level — invisible unless you have raised the SDK's log level
+  — as `Reconnection attempt 0 failed: ...`, on a first connect, which reads as
+  noise even when you do see it.
+- Three retries follow at two-second intervals, each POSTing the offer to the
+  same wrong URL.
+- After the third, the transport stops and rejects the connect promise **with no
+  argument**. This library stringifies whatever it caught, so `Pipecat.error()`
+  ends up holding a message that is the literal string `undefined`.
+
+No type error, no HTTP error, and an error signal that names nothing. The
+network tab is the fastest confirmation: two POSTs to the same URL, the second
+carrying an `sdp` field and getting a non-SDP body back.
+
+A partial match misfires too, because the pattern is a substring rather than a
+path segment. `/api/start-bot` does contain `/start`, so it rewrites to
+`/api/sessions/<id>/api/offer-bot` — wrong, but wrong loudly, as a 404. Setting
+`offerUrlTemplate` explicitly rules out both cases.
+
+### `webrtcRequestParams`, and two deprecated options
+
+`connectionUrl` and `webrtcUrl` are both marked `@deprecated` in the transport's
+typings, superseded by `webrtcRequestParams`; passing either logs
+`<key> is deprecated. Use webrtcRequestParams instead.`, and supplying one
+alongside `webrtcRequestParams` logs a second warning and uses
+`webrtcRequestParams`. Build on `webrtcRequestParams` — an `APIRequest`, the
+same `{ endpoint, headers?, requestData?, timeout? }` shape `startBot()` takes
+— and skip the other two.
+
+It points the offer at a fixed URL rather than a per-session one, and unlike
+`offerUrlTemplate` it is honoured both on the constructor and on `connect()`:
+
+```typescript
+this.pipecat.connect({ webrtcRequestParams: { endpoint: '/api/offer' } });
+```
+
+One caveat, because the two options do not compose the way they look like they
+should: on the startBot path the derived offer URL is built whenever the start
+response carries a session id and itself carries no WebRTC parameters — and it
+then overrides a `webrtcRequestParams` given to the constructor. So a
+constructor `webrtcRequestParams` does not protect you from the trap above;
+only `offerUrlTemplate` does. The division that holds:
+
+| how the bot is spawned | option to use |
+| --- | --- |
+| `startBotAndConnect()`, or `startBot()` then `connect()` | `offerUrlTemplate` |
+| your own `fetch()`, then `connect()` | `webrtcRequestParams` on `connect()` |
+
+A start endpoint that returns `webrtcRequestParams` (or `webrtc_request_params`)
+in its own response body works too, and takes precedence over both — the
+server-driven option, if you would rather not encode the URL shape in the
+client at all.
+
+### Running the transport outside a bundler
+
+The transport's ESM entry point imports `lodash/cloneDeep` without a file
+extension, and Node's ESM resolver does no extension guessing. Importing it
+under plain `node` therefore fails with `ERR_MODULE_NOT_FOUND`, and a hint
+suggesting `lodash/cloneDeep.js` instead (checked on Node 22.19). esbuild —
+which Angular's application builder uses — resolves it, and so does Bun, so
+this never surfaces in an application. It surfaces in a bare-Node script
+written against the transport directly, which is exactly where you would go to
+reproduce a connection problem outside the browser. Run that script under Bun,
+or bundle it first.
+
 ## Service surface
 
 ### `Pipecat`
