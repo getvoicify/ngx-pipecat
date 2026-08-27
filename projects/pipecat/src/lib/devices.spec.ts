@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { LogLevel, MediaState, RTVIEvent } from '@pipecat-ai/client-js';
+import { LogLevel, MediaState, type Participant, RTVIEvent } from '@pipecat-ai/client-js';
 import { PipecatDevices } from './devices';
 import { providePipecat } from './provider';
 import { PIPECAT_CLIENT, PIPECAT_TRANSPORT } from './tokens';
@@ -311,52 +311,134 @@ describe('PipecatDevices', () => {
     });
   });
 
+  /**
+   * `liveTracks` ACCUMULATES the four track-lifecycle events, reading
+   * `client.tracks()` once as a seed; see the long comment on the signal for
+   * why re-reading that snapshot per event was the bug rather than the
+   * mechanism. These tests therefore drive events and assert the accumulated
+   * `Tracks`, and the fixture below deliberately leaves `transport.tracks()` at
+   * its `{ local: {} }` default so nothing can pass through the seed by
+   * accident.
+   */
   describe('category D: reactive liveTracks signal', () => {
-    it('seeds liveTracks() from client.tracks() at construction time', () => {
+    const LOCAL: Participant = { id: 'local', name: '', local: true };
+
+    /**
+     * Two reads of `client.tracks()` back this, and they fail separately: the
+     * `toSignal` initial value covers the signal before any event arrives, and
+     * the `scan` seed is what the first event accumulates ONTO. Asserting only
+     * the value before any event is vacuous — proven by mutation: replacing the
+     * scan seed with an empty `Tracks` left such an assertion green, because
+     * the initial value was answering it. So this drives an unrelated event and
+     * requires the seeded track to survive it.
+     */
+    it('seeds liveTracks() from client.tracks(), and keeps the seed across the first event', () => {
+      const transport = new FakeTransport();
+      const seeded = { kind: 'audio', id: 'seeded-audio' } as MediaStreamTrack;
+      // Set BEFORE construction, and to something other than the FakeTransport
+      // default, or this would pass against a signal that ignored the seed.
+      transport.setTracks({ local: { audio: seeded } });
+      const { devices, client } = setup(transport);
+      expect(devices.liveTracks()).toEqual({ local: { audio: seeded } });
+
+      const camVideo = { kind: 'video', id: 'cam-video-1' } as MediaStreamTrack;
+      client.emit(RTVIEvent.TrackStarted, camVideo, LOCAL);
+
+      expect(devices.liveTracks()).toEqual({ local: { audio: seeded, video: camVideo } });
+    });
+
+    it('files a track started by the local participant under local', () => {
       const { devices, client } = setup();
+      const localAudio = { kind: 'audio', id: 'local-audio-1' } as MediaStreamTrack;
 
-      expect(devices.liveTracks()).toEqual(client.tracks());
+      client.emit(RTVIEvent.TrackStarted, localAudio, LOCAL);
+
+      expect(devices.liveTracks()).toEqual({ local: { audio: localAudio } });
     });
 
-    it('reflects a new client.tracks() snapshot after RTVIEvent.TrackStarted fires', () => {
-      const { devices, client, transport } = setup();
-      const audioTrack = { kind: 'audio', id: 'bot-audio-1' } as MediaStreamTrack;
-      transport.setTracks({ local: {}, bot: { audio: audioTrack } });
+    /**
+     * The defect this whole change exists for. `@pipecat-ai/small-webrtc-transport`
+     * announces the bot's audio track with NO participant and never puts it in
+     * `tracks()` at all, so a signal that re-read that snapshot reported no bot
+     * audio for the entire call.
+     */
+    it('files a track started with no participant under bot', () => {
+      const { devices, client } = setup();
+      const botAudio = { kind: 'audio', id: 'bot-audio-1' } as MediaStreamTrack;
 
-      client.emit(RTVIEvent.TrackStarted, audioTrack);
+      client.emit(RTVIEvent.TrackStarted, botAudio);
 
-      expect(devices.liveTracks()).toEqual({ local: {}, bot: { audio: audioTrack } });
+      expect(devices.liveTracks()).toEqual({ local: {}, bot: { audio: botAudio } });
     });
 
-    it('reflects a new client.tracks() snapshot after RTVIEvent.TrackStopped fires', () => {
-      const { devices, client, transport } = setup();
+    it('clears the slot when RTVIEvent.TrackStopped names the track occupying it', () => {
+      const { devices, client } = setup();
       const localVideo = { kind: 'video', id: 'local-video-1' } as MediaStreamTrack;
-      transport.setTracks({ local: { video: localVideo } });
+      client.emit(RTVIEvent.TrackStarted, localVideo, LOCAL);
 
-      client.emit(RTVIEvent.TrackStopped, localVideo);
+      client.emit(RTVIEvent.TrackStopped, localVideo, LOCAL);
 
-      expect(devices.liveTracks()).toEqual({ local: { video: localVideo } });
+      expect(devices.liveTracks()).toEqual({ local: {} });
     });
 
-    it('reflects a new client.tracks() snapshot after RTVIEvent.ScreenTrackStarted fires', () => {
-      const { devices, client, transport } = setup();
+    /**
+     * Switching input device announces the replacement's start before the old
+     * track's stop. Clearing the slot on any stop of the right kind would drop
+     * the track that had just taken it over — silence, from a working device.
+     */
+    it('leaves the slot alone when RTVIEvent.TrackStopped names a track that no longer occupies it', () => {
+      const { devices, client } = setup();
+      const firstMic = { kind: 'audio', id: 'mic-1' } as MediaStreamTrack;
+      const secondMic = { kind: 'audio', id: 'mic-2' } as MediaStreamTrack;
+      client.emit(RTVIEvent.TrackStarted, firstMic, LOCAL);
+      client.emit(RTVIEvent.TrackStarted, secondMic, LOCAL);
+
+      client.emit(RTVIEvent.TrackStopped, firstMic, LOCAL);
+
+      expect(devices.liveTracks()).toEqual({ local: { audio: secondMic } });
+    });
+
+    it('files a screen track under its own slot, by kind, on RTVIEvent.ScreenTrackStarted', () => {
+      const { devices, client } = setup();
       const screenVideo = { kind: 'video', id: 'screen-video-1' } as MediaStreamTrack;
-      transport.setTracks({ local: { screenVideo } });
+      const screenAudio = { kind: 'audio', id: 'screen-audio-1' } as MediaStreamTrack;
 
-      client.emit(RTVIEvent.ScreenTrackStarted, screenVideo);
+      client.emit(RTVIEvent.ScreenTrackStarted, screenVideo, LOCAL);
+      client.emit(RTVIEvent.ScreenTrackStarted, screenAudio, LOCAL);
 
-      expect(devices.liveTracks()).toEqual({ local: { screenVideo } });
+      expect(devices.liveTracks()).toEqual({ local: { screenVideo, screenAudio } });
     });
 
-    it('reflects a new client.tracks() snapshot after RTVIEvent.ScreenTrackStopped fires', () => {
-      // Note: the fixture below must differ from the FakeTransport default
-      // (`{ local: {} }`) or this assertion would pass regardless of whether
-      // ScreenTrackStopped is actually wired up — vacuously.
-      const { devices, client, transport } = setup();
-      const botAudio = { kind: 'audio', id: 'bot-audio-2' } as MediaStreamTrack;
-      transport.setTracks({ local: {}, bot: { audio: botAudio } });
+    it('clears the screen slot on RTVIEvent.ScreenTrackStopped', () => {
+      const { devices, client } = setup();
+      const screenVideo = { kind: 'video', id: 'screen-video-1' } as MediaStreamTrack;
+      const camVideo = { kind: 'video', id: 'cam-video-1' } as MediaStreamTrack;
+      client.emit(RTVIEvent.TrackStarted, camVideo, LOCAL);
+      client.emit(RTVIEvent.ScreenTrackStarted, screenVideo, LOCAL);
 
-      client.emit(RTVIEvent.ScreenTrackStopped, {} as MediaStreamTrack);
+      client.emit(RTVIEvent.ScreenTrackStopped, screenVideo, LOCAL);
+
+      // The camera track survives: stopping a screen share must not reach the
+      // plain video slot, which is what a shared "it is a video track" branch
+      // would do.
+      expect(devices.liveTracks()).toEqual({ local: { video: camVideo } });
+    });
+
+    /**
+     * `Tracks['bot']` declares `screenAudio` and `screenVideo` as `undefined` —
+     * the SDK models no remote screen share — so a remote screen track has
+     * nowhere to be filed and must not be misfiled as the bot's camera or
+     * microphone, which is the slot its `kind` would otherwise select.
+     */
+    it('ignores a screen track that has no local participant', () => {
+      const { devices, client } = setup();
+      const botAudio = { kind: 'audio', id: 'bot-audio-1' } as MediaStreamTrack;
+      client.emit(RTVIEvent.TrackStarted, botAudio);
+
+      client.emit(RTVIEvent.ScreenTrackStarted, {
+        kind: 'video',
+        id: 'remote-screen-1',
+      } as MediaStreamTrack);
 
       expect(devices.liveTracks()).toEqual({ local: {}, bot: { audio: botAudio } });
     });

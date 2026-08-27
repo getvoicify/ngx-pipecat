@@ -89,4 +89,64 @@ describe('PipecatAudio', () => {
 
     expect(component.stream()).toBe(first);
   });
+
+  /**
+   * The shape a transport that does not report remote tracks through
+   * `tracks()` actually presents, reproduced from
+   * `@pipecat-ai/small-webrtc-transport@1.10.6`:
+   *
+   *   - `SmallWebRTCTransport.tracks()` returns `this.mediaManager.tracks()`,
+   *     and `DailyMediaManager.tracks()` builds `{ local: { ... } }` with no
+   *     `bot` key at all — remote tracks live in the transport's private
+   *     `_incomingTracks` map and never reach that snapshot;
+   *   - the bot's audio track is announced exactly once, by the peer
+   *     connection's `track` handler calling
+   *     `this._callbacks.onTrackStarted?.(evt.track)` on the track's `unmute`
+   *     event — with NO participant argument.
+   *
+   * So `participant === undefined` is what a remote track looks like here,
+   * while a local one always arrives with `local: true` (`DailyMediaManager`
+   * returns early unless `event.participant?.local`, and `WavMediaManager`
+   * passes a hard-coded local participant). `Boolean(participant?.local)` is
+   * therefore the discriminator, which is the same one the vendor's own
+   * `usePipecatClientMediaTrack` in `@pipecat-ai/client-react` uses.
+   *
+   * Deriving the bot audio track from `tracks().bot` alone left this element
+   * with no `srcObject` for the entire call while inbound RTP flowed — the
+   * candidate could be heard and could hear nothing back.
+   */
+  it('renders a bot audio track announced only by TrackStarted, with no participant and no bot entry in tracks()', () => {
+    const { component, client, transport, fixture } = setup();
+    const audioTrack = { kind: 'audio', id: 'bot-audio-smallwebrtc' } as MediaStreamTrack;
+    // Exactly what SmallWebRTC's tracks() reports while the bot is speaking.
+    transport.setTracks({ local: {} });
+
+    client.emit(RTVIEvent.TrackStarted, audioTrack);
+    fixture.detectChanges();
+
+    const stream = component.stream();
+    expect(stream).toBeTruthy();
+    expect((stream as unknown as FakeMediaStream).getAudioTracks()[0]).toBe(audioTrack);
+
+    const audioEl: HTMLAudioElement = fixture.nativeElement.querySelector('audio');
+    expect(audioEl.srcObject).toBe(stream);
+  });
+
+  /**
+   * The other half of that discriminator, and the one that makes it worth
+   * having: a LOCAL microphone track goes through the very same event. Route
+   * it to `bot` and the candidate hears their own voice played back at
+   * themselves — a worse failure than silence, and one the assertion above
+   * cannot catch on its own.
+   */
+  it('does not treat a local track announced by TrackStarted as the bot audio track', () => {
+    const { component, client, transport, fixture } = setup();
+    const localAudio = { kind: 'audio', id: 'local-audio-1' } as MediaStreamTrack;
+    transport.setTracks({ local: {} });
+
+    client.emit(RTVIEvent.TrackStarted, localAudio, { id: 'local', name: '', local: true });
+    fixture.detectChanges();
+
+    expect(component.stream()).toBeFalsy();
+  });
 });
