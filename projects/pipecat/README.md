@@ -68,9 +68,95 @@ export class VoiceWidget {
 and error events, so templates can react to connection status directly
 without subscribing to anything manually.
 
+### Scoping it to a lazy route
+
+`providePipecat()` supplies every service in this library, so it works equally
+well in a lazy route's `providers` array as at the application root. The
+laziness has to reach the file holding the transport import, though: the
+`import { DailyTransport }` statement is what pulls the vendor SDK in, so a
+`providers` array that sits in an eagerly-imported route config buys you
+nothing. `app.config.ts` calls `provideRouter(routes)`, which makes
+`app.routes.ts` part of the initial chunk — and any static import at the top of
+it too, however lazy the `loadComponent` below is.
+
+So keep the transport out of `app.routes.ts` and point it at a route file that
+is itself lazily loaded:
+
+```typescript
+// app.routes.ts — eagerly imported by app.config.ts, so no transport here.
+import { Routes } from '@angular/router';
+
+export const routes: Routes = [
+  {
+    path: 'voice',
+    loadChildren: () => import('./voice/voice.routes').then((m) => m.VOICE_ROUTES),
+  },
+];
+```
+
+```typescript
+// voice/voice.routes.ts — fetched only when someone visits /voice.
+import { Routes } from '@angular/router';
+import { providePipecat, PIPECAT_TRANSPORT } from '@getvoicify/pipecat';
+import { DailyTransport } from '@pipecat-ai/daily-transport';
+
+export const VOICE_ROUTES: Routes = [
+  {
+    path: '',
+    providers: [
+      providePipecat(),
+      { provide: PIPECAT_TRANSPORT, useFactory: () => new DailyTransport() },
+    ],
+    loadComponent: () => import('./voice-page').then((m) => m.VoicePage),
+  },
+];
+```
+
+Measured on this repo's demo app with `ng build` (production) and the Daily
+transport:
+
+| where the providers and the transport import live | initial bundle |
+| --- | --- |
+| no voice route at all (baseline) | 218.81 kB |
+| `app.routes.ts` (eagerly imported) | 616.77 kB |
+| `voice.routes.ts` (behind `loadChildren`) | 223.30 kB |
+
+The middle row is the trap: it reads as lazy and is not. `loadComponent` duly
+defers the component — all 402 bytes of it — while the SDK it was meant to
+defer has already shipped in the initial chunk, overshooting Angular's default
+500 kB initial budget by 116.77 kB. The same two providers behind
+`loadChildren` leave the initial bundle 4.49 kB above the no-voice baseline and
+move ~394 kB into chunks that are fetched only when someone visits `/voice`.
+
+Both forms are supported; use the root one when the client should be available
+application-wide.
+
 By default, `providePipecat()` disconnects the client automatically when its
-providing injector is destroyed. Pass `{ persistOnRoute: true }` to opt out
-(e.g. for a client that should survive route changes).
+providing injector is destroyed, and `{ persistOnRoute: true }` opts out of
+that. Neither applies to route-scoped usage. Angular does not destroy the
+environment injector it creates for a `Route.providers` array when you navigate
+away from that route: probed on Angular 21.2 with a real `provideRouter`, the
+route client's `disconnect()` was called 0 times after navigating to another
+route, 0 times after `Router.resetConfig([])`, and 0 times after the whole test
+environment was torn down — while destroying an environment injector directly
+called it once, so the teardown hook itself works. On a route, therefore, the
+automatic disconnect never fires and `persistOnRoute` has no effect: leaving
+the voice route keeps the microphone and the connection live. Disconnect
+explicitly from the component's own teardown instead.
+
+```typescript
+import { Component, DestroyRef, inject } from '@angular/core';
+import { Pipecat } from '@getvoicify/pipecat';
+
+@Component({ /* ... */ })
+export class VoicePage {
+  private readonly pipecat = inject(Pipecat);
+
+  constructor() {
+    inject(DestroyRef).onDestroy(() => this.pipecat.disconnect());
+  }
+}
+```
 
 ## Service surface
 

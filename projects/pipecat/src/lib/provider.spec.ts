@@ -1,9 +1,11 @@
-import { PLATFORM_ID } from '@angular/core';
+import { createEnvironmentInjector, EnvironmentInjector, PLATFORM_ID } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { providePipecat } from './provider';
 import { PIPECAT_CLIENT, PIPECAT_TRANSPORT } from './tokens';
 import { FakeTransport } from './testing/fake-transport';
 import { NoopPipecatClient } from './noop-pipecat-client';
+import { Pipecat } from './pipecat';
+import { PipecatDevices } from './devices';
 
 describe('providePipecat', () => {
   afterEach(() => {
@@ -193,5 +195,115 @@ describe('providePipecat', () => {
     client.transport.tracks();
 
     expect(tracksSpy).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('providePipecat scoping (issue #22 §1)', () => {
+  afterEach(() => {
+    TestBed.resetTestingModule();
+  });
+
+  /**
+   * (A) The reported repro. A consumer that keeps the voice feature on one lazy
+   * route puts `providePipecat()` in that route's `providers` array, which Angular
+   * materialises as a *child* environment injector. While the library's services
+   * carried `providedIn: 'root'` Angular instantiated them in the ROOT injector
+   * regardless of who asked, so `PIPECAT_CLIENT` — provided only on the child —
+   * was invisible to them and the consumer saw
+   * `NG0201: No provider found for InjectionToken Pipecat client. Path: Pipecat -> InjectionToken Pipecat client`.
+   */
+  it('resolves Pipecat from a child environment injector that holds providePipecat()', () => {
+    TestBed.configureTestingModule({ providers: [] });
+    const routeInjector = createEnvironmentInjector(
+      [providePipecat(), { provide: PIPECAT_TRANSPORT, useValue: new FakeTransport() }],
+      TestBed.inject(EnvironmentInjector),
+    );
+
+    const pipecat = routeInjector.get(Pipecat);
+
+    // Usable, not merely truthy: `state()` reads through to the injected transport,
+    // which proves this facade resolved a real client from the child injector.
+    expect(pipecat.state()).toBe('disconnected');
+  });
+
+  /**
+   * (B) No root self-registration. Without `providePipecat()` the library must be
+   * absent from the injector entirely — Angular must fail to find `Pipecat` itself,
+   * NOT construct it at root and then fail on its `PIPECAT_CLIENT` dependency.
+   * Asserting only "it throws" would pass either way, so assert *what* is missing:
+   * the message must name the service, never the client token.
+   */
+  it('does not self-register Pipecat at the root injector', () => {
+    TestBed.configureTestingModule({ providers: [] });
+
+    let message = '';
+    try {
+      TestBed.inject(Pipecat);
+    } catch (err: unknown) {
+      message = err instanceof Error ? err.message : String(err);
+    }
+
+    expect(message).toMatch(/No provider .*Pipecat/);
+    expect(message).not.toContain('Pipecat client');
+  });
+
+  it('does not self-register PipecatDevices at the root injector', () => {
+    TestBed.configureTestingModule({ providers: [] });
+
+    let message = '';
+    try {
+      TestBed.inject(PipecatDevices);
+    } catch (err: unknown) {
+      message = err instanceof Error ? err.message : String(err);
+    }
+
+    expect(message).toMatch(/No provider .*PipecatDevices/);
+    expect(message).not.toContain('Pipecat client');
+  });
+
+  /**
+   * (C) Scoping is real. Two sibling routes each carrying their own
+   * `providePipecat()` must get their own facade — and neither may be the root's.
+   * This is the property that lets a consumer confine the library (and its vendor
+   * transport) to the routes that actually use it.
+   */
+  it('gives sibling child injectors their own Pipecat instances, distinct from the root one', () => {
+    TestBed.configureTestingModule({
+      providers: [providePipecat(), { provide: PIPECAT_TRANSPORT, useValue: new FakeTransport() }],
+    });
+    const root = TestBed.inject(EnvironmentInjector);
+    const routeA = createEnvironmentInjector(
+      [providePipecat(), { provide: PIPECAT_TRANSPORT, useValue: new FakeTransport() }],
+      root,
+    );
+    const routeB = createEnvironmentInjector(
+      [providePipecat(), { provide: PIPECAT_TRANSPORT, useValue: new FakeTransport() }],
+      root,
+    );
+
+    const rootPipecat = TestBed.inject(Pipecat);
+    const pipecatA = routeA.get(Pipecat);
+    const pipecatB = routeB.get(Pipecat);
+
+    expect(pipecatA).not.toBe(pipecatB);
+    expect(pipecatA).not.toBe(rootPipecat);
+    expect(pipecatB).not.toBe(rootPipecat);
+  });
+
+  it('wires each child facade to the sub-services of its own injector', () => {
+    TestBed.configureTestingModule({ providers: [] });
+    const root = TestBed.inject(EnvironmentInjector);
+    const routeA = createEnvironmentInjector(
+      [providePipecat(), { provide: PIPECAT_TRANSPORT, useValue: new FakeTransport() }],
+      root,
+    );
+    const routeB = createEnvironmentInjector(
+      [providePipecat(), { provide: PIPECAT_TRANSPORT, useValue: new FakeTransport() }],
+      root,
+    );
+
+    expect(routeA.get(Pipecat).devices).toBe(routeA.get(PipecatDevices));
+    expect(routeB.get(Pipecat).devices).toBe(routeB.get(PipecatDevices));
+    expect(routeA.get(PipecatDevices)).not.toBe(routeB.get(PipecatDevices));
   });
 });

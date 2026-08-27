@@ -77,9 +77,7 @@ function reduce(acc: ConversationState, action: ConversationAction): Conversatio
  * Scoped purely to building the transcript — it does not track speaking
  * activity (no `userStartedSpeaking`/`botStartedSpeaking`/etc. handling).
  */
-@Injectable({
-  providedIn: 'root',
-})
+@Injectable()
 export class PipecatConversation {
   private readonly client = inject(PIPECAT_CLIENT);
   private readonly clear$ = new Subject<ClearAction>();

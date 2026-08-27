@@ -4,9 +4,7 @@ import { RTVIEvent } from '@pipecat-ai/client-js';
 import { fromClientEvent } from './events';
 import { PIPECAT_CLIENT } from './tokens';
 
-@Injectable({
-  providedIn: 'root',
-})
+@Injectable()
 export class PipecatUICommands {
   private readonly client = inject(PIPECAT_CLIENT);
 

@@ -25,9 +25,7 @@ interface PipecatStatus {
 
 type ConnectParams = Parameters<PipecatClient['connect']>[0];
 
-@Injectable({
-  providedIn: 'root',
-})
+@Injectable()
 export class Pipecat {
   private readonly client = inject(PIPECAT_CLIENT);
   readonly devices = inject(PipecatDevices);
