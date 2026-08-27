@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.1](https://github.com/getvoicify/ngx-pipecat/compare/v0.3.0...v0.3.1) (2026-08-27)
+
+
+### Bug Fixes
+
+* **devices:** accumulate liveTracks from the track events, not client.tracks() ([#30](https://github.com/getvoicify/ngx-pipecat/issues/30)) ([c7154dc](https://github.com/getvoicify/ngx-pipecat/commit/c7154dcd229730c5174eeec4d32f3f6a51d9ea21))
+
 ## [0.3.0](https://github.com/getvoicify/ngx-pipecat/compare/v0.2.0...v0.3.0) (2026-08-27)
 
 
