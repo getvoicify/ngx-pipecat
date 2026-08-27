@@ -1,11 +1,106 @@
 import { inject, Injectable, signal } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
-import { merge, type Observable } from 'rxjs';
-import { map } from 'rxjs/operators';
-import type { PipecatClient } from '@pipecat-ai/client-js';
+import { fromEvent, merge, type Observable } from 'rxjs';
+import { scan } from 'rxjs/operators';
+import type { Participant, PipecatClient, Tracks } from '@pipecat-ai/client-js';
 import { RTVIEvent } from '@pipecat-ai/client-js';
 import { fromClientEvent } from './events';
 import { PIPECAT_CLIENT } from './tokens';
+
+/** Where a track sits within `Tracks['local']` or `Tracks['bot']`. */
+type TrackSlot = 'audio' | 'video' | 'screenAudio' | 'screenVideo';
+
+/** One participant's four slots, before the narrower `Tracks` shape is applied. */
+type TrackSlots = Partial<Record<TrackSlot, MediaStreamTrack>>;
+
+/** A single track-lifecycle event, normalised across the SDK's four of them. */
+interface TrackChange {
+  readonly track: MediaStreamTrack;
+  readonly participant: Participant | undefined;
+  readonly slot: TrackSlot;
+  readonly started: boolean;
+}
+
+type TrackLifecycleEvent =
+  | RTVIEvent.TrackStarted
+  | RTVIEvent.TrackStopped
+  | RTVIEvent.ScreenTrackStarted
+  | RTVIEvent.ScreenTrackStopped;
+
+/**
+ * Like `fromClientEvent`, but keeps the SECOND handler argument as well.
+ *
+ * `fromClientEvent` documents dropping everything past `args[0]`, and for the
+ * track events that argument is exactly what says whose track it is. Kept
+ * private to this file rather than added to `events.ts` so the fix costs no
+ * public API; if a second caller ever needs it, that is the time to promote it.
+ */
+function trackChanges(
+  client: PipecatClient,
+  event: TrackLifecycleEvent,
+  started: boolean,
+  screen: boolean,
+): Observable<TrackChange> {
+  return fromEvent(
+    client,
+    event,
+    (track: MediaStreamTrack, participant?: Participant): TrackChange => ({
+      track,
+      participant,
+      slot: screen
+        ? track.kind === 'audio'
+          ? 'screenAudio'
+          : 'screenVideo'
+        : track.kind === 'audio'
+          ? 'audio'
+          : 'video',
+      started,
+    }),
+  );
+}
+
+function applySlot(
+  slots: TrackSlots,
+  slot: TrackSlot,
+  track: MediaStreamTrack,
+  started: boolean,
+): TrackSlots {
+  if (started) {
+    return { ...slots, [slot]: track };
+  }
+  // Cleared only when this exact track still occupies the slot. Switching input
+  // device announces the replacement's start before the old track's stop, so a
+  // blind delete here would throw away the track that just took its place.
+  if (slots[slot] !== track) {
+    return slots;
+  }
+  const next = { ...slots };
+  delete next[slot];
+  return next;
+}
+
+function applyTrackChange(tracks: Tracks, change: TrackChange): Tracks {
+  const { slot, track, started } = change;
+
+  // The same discriminator the vendor's own `usePipecatClientMediaTrack`
+  // (@pipecat-ai/client-react) uses, and it has to be this lenient one rather
+  // than a check for a bot participant: SmallWebRTC announces a REMOTE track
+  // with no participant at all (`onTrackStarted?.(evt.track)`), while every
+  // local one carries `local: true`. Absent therefore means remote.
+  if (change.participant?.local === true) {
+    return { ...tracks, local: applySlot(tracks.local, slot, track, started) };
+  }
+
+  // `Tracks['bot']` types `screenAudio` and `screenVideo` as `undefined`: the
+  // SDK does not model a remote screen share, so there is nowhere to put one.
+  if (slot === 'screenAudio' || slot === 'screenVideo') {
+    return tracks;
+  }
+
+  // Sound because of the guard above — only `audio` and `video` reach here, and
+  // those are the two slots `Tracks['bot']` actually declares.
+  return { ...tracks, bot: applySlot(tracks.bot ?? {}, slot, track, started) as Tracks['bot'] };
+}
 
 @Injectable()
 export class PipecatDevices {
@@ -125,20 +220,41 @@ export class PipecatDevices {
   // field (TS2300: Duplicate identifier) — the plain tracks() delegate stays
   // as-is for callers that just want a synchronous snapshot.
   //
-  // The SDK doesn't emit a single unified "tracks changed" event, and the
-  // four lifecycle events below carry differently-shaped payloads that don't
-  // map cleanly onto `Tracks`' `{ local, bot? }` structure. Rather than
-  // reconstruct that structure by hand from each event, any one of them
-  // firing just triggers a re-read of the SDK's own snapshot via
-  // client.tracks() — reusing its correct computation instead of duplicating
-  // it.
+  // The SDK emits no unified "tracks changed" event, so this is accumulated
+  // from the four lifecycle events, with `client.tracks()` read once as the
+  // seed. It USED to be the other way round — any event triggered a re-read of
+  // `client.tracks()`, reusing the SDK's own computation rather than
+  // reconstructing `{ local, bot? }` by hand. That reuse was the bug, because
+  // the snapshot is not a complete account of what the transport has:
+  //
+  //   `SmallWebRTCTransport.tracks()` returns `this.mediaManager.tracks()`, and
+  //   `DailyMediaManager.tracks()` builds `{ local: { ... } }` with no `bot`
+  //   key at all. Remote tracks live in the transport's own `_incomingTracks`
+  //   map, and the ONLY way out of it is `onTrackStarted` — fired from the peer
+  //   connection's `track` handler on the track's `unmute` event, with no
+  //   participant argument. (Read against @pipecat-ai/small-webrtc-transport
+  //   1.10.6, which was the latest published version at the time.)
+  //
+  // So `liveTracks().bot?.audio` was permanently `undefined` under that
+  // transport: `<gvo-pipecat-audio>` never got a `srcObject`, and the bot could
+  // not be heard while its RTP was arriving perfectly well. Accumulating from
+  // the events is also what `@pipecat-ai/client-react` does — its
+  // `usePipecatClientMediaTrack` keys tracks by `Boolean(participant?.local)`
+  // and consults `client.tracks()` only to seed.
+  //
+  // The one thing the seed cannot cover, stated rather than left to be
+  // rediscovered: a track announced BEFORE this service is constructed is lost
+  // on a transport whose `tracks()` omits it, because nothing re-announces it.
+  // Construct `PipecatDevices` (or render a component that injects it) before
+  // connecting, which `providePipecat()`'s injector-level provider makes the
+  // ordinary case.
   readonly liveTracks = toSignal(
     merge(
-      fromClientEvent(this.client, RTVIEvent.TrackStarted),
-      fromClientEvent(this.client, RTVIEvent.TrackStopped),
-      fromClientEvent(this.client, RTVIEvent.ScreenTrackStarted),
-      fromClientEvent(this.client, RTVIEvent.ScreenTrackStopped),
-    ).pipe(map(() => this.client.tracks())),
+      trackChanges(this.client, RTVIEvent.TrackStarted, true, false),
+      trackChanges(this.client, RTVIEvent.TrackStopped, false, false),
+      trackChanges(this.client, RTVIEvent.ScreenTrackStarted, true, true),
+      trackChanges(this.client, RTVIEvent.ScreenTrackStopped, false, true),
+    ).pipe(scan(applyTrackChange, this.client.tracks())),
     { initialValue: this.client.tracks() },
   );
 
