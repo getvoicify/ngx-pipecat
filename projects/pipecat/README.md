@@ -18,9 +18,12 @@ npm install @getvoicify/pipecat @pipecat-ai/client-js @pipecat-ai/daily-transpor
 ```
 
 `@angular/core` and `@angular/common` `^21.2.0` and `@pipecat-ai/client-js`
-`^1.13.0` are peer dependencies. The transport package (Daily, or any other
-`Transport` implementation supported by `@pipecat-ai/client-js`) is a
-separate install — this library has no dependency on any specific one.
+`~1.13.0` are peer dependencies. The `client-js` range is a tilde, not a
+caret, because the official transports pin `~1.13.0` themselves — a caret
+here would let you resolve a `client-js` minor your transport does not
+support. The transport package (Daily, or any other `Transport`
+implementation supported by `@pipecat-ai/client-js`) is a separate install —
+this library has no dependency on any specific one.
 
 ## Quick start
 
