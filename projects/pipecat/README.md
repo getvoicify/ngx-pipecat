@@ -291,13 +291,22 @@ whenever they're provided.
 
 ## SSR
 
-This library works out of the box under `@angular/ssr` — no configuration
-needed. Constructing your transport (Daily, WebSocket, or any other
-`Transport` implementation) touches browser-only APIs like WebRTC and
-`navigator.mediaDevices`, so `providePipecat()` defers that construction
-until the app is actually running in the browser. You don't need to guard
-`providePipecat()` or your transport factory against the server platform
-yourself.
+On the server platform this library is **inert**. `providePipecat()` resolves
+a no-op stand-in client: no transport is constructed (your transport factory
+is never invoked), no `PipecatClient` is constructed, no events ever fire, and
+every signal stays at its initial value. Server-rendered markup therefore
+shows the disconnected/initial state, and the real `PipecatClient` — backed by
+your `PIPECAT_TRANSPORT` — is constructed on the browser platform only, where
+it hydrates and takes over.
+
+Both halves of that guard are load-bearing. Your transport (Daily, WebSocket,
+or any other `Transport` implementation) touches browser-only APIs like WebRTC
+and `navigator.mediaDevices` just by being instantiated; the SDK's
+`PipecatClient` constructor separately evaluates a bare `window` reference,
+which throws `ReferenceError` under Node rather than resolving to `undefined`.
+
+You don't need to guard `providePipecat()` or your transport factory against
+the server platform yourself.
 
 ## Full event parity: `on()` / `fromClientEvent()`
 
