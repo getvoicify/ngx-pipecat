@@ -291,13 +291,34 @@ whenever they're provided.
 
 ## SSR
 
-This library works out of the box under `@angular/ssr` — no configuration
-needed. Constructing your transport (Daily, WebSocket, or any other
-`Transport` implementation) touches browser-only APIs like WebRTC and
-`navigator.mediaDevices`, so `providePipecat()` defers that construction
-until the app is actually running in the browser. You don't need to guard
-`providePipecat()` or your transport factory against the server platform
-yourself.
+On the server platform this library is **inert**. `providePipecat()` resolves
+a no-op stand-in client: no transport is constructed (your transport factory
+is never invoked), no `PipecatClient` is constructed, no events ever fire, and
+every signal stays at its initial value. Server-rendered markup therefore
+shows the disconnected/initial state, and the real `PipecatClient` — backed by
+your `PIPECAT_TRANSPORT` — is constructed on the browser platform only. It is
+built fresh once the application hydrates and carries no state across from the
+server render: the application hydrates, the client does not.
+
+Both halves of that guard are load-bearing. Your transport (Daily, WebSocket,
+or any other `Transport` implementation) touches browser-only APIs like WebRTC
+and `navigator.mediaDevices` just by being instantiated; the SDK's
+`PipecatClient` constructor separately evaluates a bare `window` reference,
+which throws `ReferenceError` under Node rather than resolving to `undefined`.
+
+One consequence is worth knowing: on the server the lifecycle calls resolve
+without doing anything. `connect()` and `startBotAndConnect()` resolve a
+placeholder `BotReadyData` of `{ version: '' }` and `startBot()` resolves
+`undefined`, having connected nothing. They resolve rather than reject because
+`Pipecat.connect()` and `startBotAndConnect()` are fire-and-forget — they only
+attach a `.catch()` to a promise they never hand back — so a server-side
+rejection would push a spurious error into `error` on every render, and any
+consumer calling the client directly without a handler would raise an
+unhandled rejection. Code that `await`s these calls must therefore not treat
+resolution as proof of a connection; read `state` instead.
+
+You don't need to guard `providePipecat()` or your transport factory against
+the server platform yourself.
 
 ## Full event parity: `on()` / `fromClientEvent()`
 

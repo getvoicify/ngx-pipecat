@@ -3,6 +3,7 @@ import { TestBed } from '@angular/core/testing';
 import { providePipecat } from './provider';
 import { PIPECAT_CLIENT, PIPECAT_TRANSPORT } from './tokens';
 import { FakeTransport } from './testing/fake-transport';
+import { NoopPipecatClient } from './noop-pipecat-client';
 
 describe('providePipecat', () => {
   afterEach(() => {
@@ -120,6 +121,61 @@ describe('providePipecat', () => {
     expect(client).toBeTruthy();
     expect(() => client.transport.state).not.toThrow();
     expect(client.transport.state).toBe('disconnected');
+  });
+
+  it('resolves PIPECAT_CLIENT on the server platform even when `window` is absent', () => {
+    const transportFactory = vi.fn(() => new FakeTransport());
+    TestBed.configureTestingModule({
+      providers: [
+        providePipecat(),
+        { provide: PIPECAT_TRANSPORT, useFactory: transportFactory },
+        { provide: PLATFORM_ID, useValue: 'server' },
+      ],
+    });
+
+    // Every other server-platform test in this file runs under vitest's jsdom
+    // environment, where `window` exists — so a real PipecatClient constructs fine
+    // and those tests prove nothing about SSR. Under `node dist/server/server.mjs`
+    // there is no `window` binding at all, and the SDK's `learnAboutClient()` helper
+    // evaluates a bare `window?.navigator?.userAgent`. Optional chaining does NOT
+    // protect an *undeclared* identifier, so that expression throws
+    // `ReferenceError: window is not defined`. Remove the global for the duration of
+    // the injection to reproduce the real Node condition, and restore it in `finally`
+    // so a failure here cannot poison sibling tests.
+    const saved = Object.getOwnPropertyDescriptor(globalThis, 'window');
+    expect(saved?.configurable).toBe(true);
+    delete (globalThis as { window?: unknown }).window;
+    try {
+      expect(() => TestBed.inject(PIPECAT_CLIENT)).not.toThrow();
+    } finally {
+      if (saved) {
+        Object.defineProperty(globalThis, 'window', saved);
+      }
+    }
+  });
+
+  it('resolves an inert NoopPipecatClient on the server platform', () => {
+    TestBed.configureTestingModule({
+      providers: [
+        providePipecat(),
+        { provide: PIPECAT_TRANSPORT, useFactory: () => new FakeTransport() },
+        { provide: PLATFORM_ID, useValue: 'server' },
+      ],
+    });
+
+    expect(TestBed.inject(PIPECAT_CLIENT)).toBeInstanceOf(NoopPipecatClient);
+  });
+
+  it('resolves a real PipecatClient (not the noop stand-in) on the browser platform', () => {
+    TestBed.configureTestingModule({
+      providers: [
+        providePipecat(),
+        { provide: PIPECAT_TRANSPORT, useValue: new FakeTransport() },
+        { provide: PLATFORM_ID, useValue: 'browser' },
+      ],
+    });
+
+    expect(TestBed.inject(PIPECAT_CLIENT)).not.toBeInstanceOf(NoopPipecatClient);
   });
 
   it('still uses the real provided transport on the browser platform', () => {
