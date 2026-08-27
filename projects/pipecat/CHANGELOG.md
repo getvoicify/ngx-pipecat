@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.3.0](https://github.com/getvoicify/ngx-pipecat/compare/v0.2.0...v0.3.0) (2026-08-27)
+
+
+### ⚠ BREAKING CHANGES
+
+* the library's services are no longer available from the root injector by self-registration; `providePipecat()` must be called in the injector (application root or a route's `providers`) that resolves them.
+
+### Features
+
+* provide Pipecat services from providePipecat() instead of root ([#26](https://github.com/getvoicify/ngx-pipecat/issues/26)) ([1f30005](https://github.com/getvoicify/ngx-pipecat/commit/1f30005f65451d76dc7266708d2bc73990f79f29))
+
+
+### Bug Fixes
+
+* **deps:** narrow @pipecat-ai/client-js peer range to ~1.13.0 ([#23](https://github.com/getvoicify/ngx-pipecat/issues/23)) ([7c11aef](https://github.com/getvoicify/ngx-pipecat/commit/7c11aefa8be684883229ba42130dcd1bf114cab0))
+* **ssr:** never construct PipecatClient on the server platform ([#25](https://github.com/getvoicify/ngx-pipecat/issues/25)) ([19ce0f5](https://github.com/getvoicify/ngx-pipecat/commit/19ce0f573f6ef7e82c473f3b671776f387c9cf09))
+
 ## [0.2.0](https://github.com/getvoicify/ngx-pipecat/compare/v0.1.0...v0.2.0) (2026-08-24)
 
 
