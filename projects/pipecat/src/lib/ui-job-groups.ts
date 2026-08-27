@@ -132,9 +132,7 @@ function reduce(acc: UIJobGroupsById, action: UIJobGroupsAction): UIJobGroupsByI
  * Completed groups are retained until explicitly cleared via
  * `clearJobGroup`/`clearCompletedJobGroups` — they are not auto-removed.
  */
-@Injectable({
-  providedIn: 'root',
-})
+@Injectable()
 export class PipecatUIJobGroups {
   private readonly client = inject(PIPECAT_CLIENT);
   private readonly clear$ = new Subject<ClearJobGroupAction | ClearCompletedJobGroupsAction>();

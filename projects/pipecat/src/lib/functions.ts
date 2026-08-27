@@ -2,9 +2,7 @@ import { inject, Injectable } from '@angular/core';
 import type { PipecatClient } from '@pipecat-ai/client-js';
 import { PIPECAT_CLIENT } from './tokens';
 
-@Injectable({
-  providedIn: 'root',
-})
+@Injectable()
 export class PipecatFunctions {
   private readonly client = inject(PIPECAT_CLIENT);
 

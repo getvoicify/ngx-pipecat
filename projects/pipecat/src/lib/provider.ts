@@ -7,8 +7,15 @@ import {
   PLATFORM_ID,
 } from '@angular/core';
 import { PipecatClient } from '@pipecat-ai/client-js';
+import { PipecatConversation } from './conversation';
+import { PipecatDevices } from './devices';
+import { PipecatFunctions } from './functions';
+import { PipecatMessaging } from './messaging';
 import { asPipecatClient, NoopPipecatClient } from './noop-pipecat-client';
+import { Pipecat } from './pipecat';
 import { PIPECAT_CLIENT, PIPECAT_TRANSPORT } from './tokens';
+import { PipecatUICommands } from './ui-commands';
+import { PipecatUIJobGroups } from './ui-job-groups';
 import { PipecatClientConfig } from './types';
 
 export function providePipecat(config: PipecatClientConfig = {}): EnvironmentProviders {
@@ -46,5 +53,24 @@ export function providePipecat(config: PipecatClientConfig = {}): EnvironmentPro
         return client;
       },
     },
+    // Every service is provided HERE rather than carrying `providedIn: 'root'`
+    // (issue #22 §1). Angular instantiates a `providedIn: 'root'` service in the
+    // ROOT environment injector no matter which injector asked for it, so a
+    // `PIPECAT_CLIENT` supplied by `providePipecat()` inside a lazy route's
+    // `providers` array was invisible to them and consumers hit
+    // `NG0201: No provider found for InjectionToken Pipecat client`.
+    // That forced registration at the application root, which drags the
+    // consumer's transport factory — and its transitive vendor SDK, e.g.
+    // `@daily-co/daily-js` — into the INITIAL bundle of every route, including
+    // the routes that never touch voice. Listing the classes here binds them to
+    // whichever environment injector ran `providePipecat()`, so the whole
+    // library (and the transport it pulls in) can be confined to one lazy route.
+    Pipecat,
+    PipecatDevices,
+    PipecatMessaging,
+    PipecatFunctions,
+    PipecatUICommands,
+    PipecatUIJobGroups,
+    PipecatConversation,
   ]);
 }
