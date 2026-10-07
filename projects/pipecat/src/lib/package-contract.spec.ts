@@ -91,4 +91,9 @@ describe('@getvoicify/pipecat package contract', () => {
 
     expect(options['bump-minor-pre-major']).toBe(true);
   });
+
+  it('peers @angular/core and @angular/common from 21.2 up to, but not including, 23', () => {
+    expect(packageJson.peerDependencies['@angular/core']).toBe('>=21.2.0 <23.0.0');
+    expect(packageJson.peerDependencies['@angular/common']).toBe('>=21.2.0 <23.0.0');
+  });
 });
