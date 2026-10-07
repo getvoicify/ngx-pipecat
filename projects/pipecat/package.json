@@ -8,8 +8,8 @@
     "directory": "projects/pipecat"
   },
   "peerDependencies": {
-    "@angular/common": "^21.2.0",
-    "@angular/core": "^21.2.0",
+    "@angular/common": ">=21.2.0 <23.0.0",
+    "@angular/core": ">=21.2.0 <23.0.0",
     "@pipecat-ai/client-js": "~1.13.0"
   },
   "dependencies": {
