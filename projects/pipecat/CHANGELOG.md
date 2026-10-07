@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.2](https://github.com/getvoicify/ngx-pipecat/compare/v0.3.1...v0.3.2) (2026-10-07)
+
+
+### Bug Fixes
+
+* **deps:** widen the Angular peer range to &gt;=21.2.0 &lt;23.0.0 ([#32](https://github.com/getvoicify/ngx-pipecat/issues/32)) ([aea264f](https://github.com/getvoicify/ngx-pipecat/commit/aea264fa53092e69da0ed055873bb336709c5b1a))
+
 ## [0.3.1](https://github.com/getvoicify/ngx-pipecat/compare/v0.3.0...v0.3.1) (2026-08-27)
 
 
